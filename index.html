@@ -1,934 +1,341 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0A0E13">
+<meta name="description" content="Command Center — Life OS">
 <title>Command Center — Life OS</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><rect width=24 height=24 rx=6 fill=%22%230A0E13%22/><path d=%22M12 3l1.8 5.3L19 10l-5.2 1.7L12 17l-1.8-5.3L5 10l5.2-1.7z%22 fill=%22%232FE0C4%22/></svg>" />
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <style>
-  html, body { background: #0A0E13; margin: 0; }
-  * { box-sizing: border-box; }
-  .lc-mono { font-family: 'JetBrains Mono', monospace; }
-  .lc-display { font-family: 'Space Grotesk', sans-serif; }
-  .lc-scroll::-webkit-scrollbar { height: 6px; width: 6px; }
-  .lc-scroll::-webkit-scrollbar-thumb { background: #232C38; border-radius: 999px; }
-  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+:root{
+  --bg:#0A0E13;--surface:#12181F;--surface2:#1A222C;--border:#232C38;--border2:#1B232E;
+  --text:#E7ECF2;--muted:#8492A3;--faint:#647184;--teal:#2FE0C4;--tealDim:#1B3B36;
+  --amber:#F5A623;--amberDim:#3B2E14;--coral:#FB7185;--coralDim:#3A1E23;
+  --green:#3DDC97;--violet:#A78BFA;--violetDim:#2A2340;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text)}
+body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+button,input,select{font:inherit}
+button{cursor:pointer}
+.app{min-height:100vh;display:flex;background:var(--bg)}
+.sidebar{width:230px;flex:0 0 230px;background:var(--surface);border-right:1px solid var(--border);padding:24px 14px;display:flex;flex-direction:column}
+.brand{display:flex;align-items:center;gap:10px;padding:0 10px 24px;font-weight:700;letter-spacing:-.02em}
+.brand-mark{width:30px;height:30px;border-radius:9px;background:var(--tealDim);display:grid;place-items:center;color:var(--teal)}
+.nav{display:flex;flex-direction:column;gap:4px}
+.nav button{border:0;background:transparent;color:var(--muted);padding:11px 12px;border-radius:11px;text-align:left;display:flex;align-items:center;gap:10px;font-weight:600}
+.nav button:hover{background:var(--surface2);color:var(--text)}
+.nav button.active{background:var(--surface2);color:var(--teal)}
+.sync{margin-top:auto;border-top:1px solid var(--border2);padding:16px 10px 0;color:var(--faint);font-size:12px;display:flex;align-items:center;gap:8px}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:var(--green)}
+.main{flex:1;min-width:0;padding:30px}
+.container{max-width:1180px;margin:auto}
+.page-title{margin:0;font-size:30px;letter-spacing:-.035em}
+.subtitle{color:var(--faint);font-size:13px;margin-top:6px}
+.section-label{text-transform:uppercase;letter-spacing:.13em;color:var(--faint);font-size:11px;font-weight:700;margin-bottom:12px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:17px;padding:20px}
+.grid{display:grid;gap:18px}
+.stats{grid-template-columns:repeat(3,1fr);margin-top:28px}
+.stat{border:1px solid var(--border);background:var(--surface);border-radius:17px;padding:18px;text-align:left;color:var(--text)}
+.stat:hover{transform:translateY(-1px);border-color:#344253}
+.stat-value{font-size:30px;font-weight:700;letter-spacing:-.04em}
+.stat-label{font-size:12px;color:var(--muted);margin-top:6px}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px}
+.dashboard-grid{grid-template-columns:repeat(3,1fr);margin-top:18px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.stack{display:flex;flex-direction:column;gap:12px}
+.goal{margin-top:14px}
+.goal:first-child{margin-top:0}
+.goal-name{font-size:13px}
+.progress{height:7px;background:var(--surface2);border-radius:99px;overflow:hidden;margin-top:7px}
+.progress>i{display:block;height:100%;background:var(--violet);border-radius:99px}
+.habit-row{display:flex;align-items:center;gap:10px;padding:8px;border-radius:9px;border:0;background:transparent;color:var(--muted);text-align:left;width:100%}
+.habit-row.done{background:var(--tealDim);color:var(--text)}
+.iconbox{width:30px;height:30px;border-radius:8px;background:var(--surface2);display:grid;place-items:center;color:var(--teal);flex:0 0 30px}
+.capture{margin-top:18px}
+.form{display:flex;gap:9px;flex-wrap:wrap}
+input,select{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:10px 11px;outline:none}
+input:focus,select:focus{border-color:#3b5265;box-shadow:0 0 0 2px rgba(47,224,196,.08)}
+.grow{flex:1;min-width:180px}
+.btn{border:0;border-radius:9px;padding:10px 14px;background:var(--teal);color:#062622;font-weight:700}
+.btn.secondary{background:var(--surface2);border:1px solid var(--border);color:var(--text)}
+.btn.danger{background:var(--coralDim);color:var(--coral)}
+.filters{display:flex;gap:7px;overflow:auto;margin:18px 0 10px}
+.filter{border:1px solid transparent;background:transparent;color:var(--muted);padding:8px 11px;border-radius:9px;white-space:nowrap}
+.filter.active{background:var(--surface2);border-color:var(--border);color:var(--teal)}
+.list{overflow:hidden}
+.item{display:flex;align-items:center;gap:10px;padding:13px 2px;border-top:1px solid var(--border2)}
+.item:first-child{border-top:0}
+.check{width:20px;height:20px;border-radius:6px;border:1px solid var(--border);background:transparent;color:#062622;display:grid;place-items:center;flex:0 0 20px}
+.check.done{background:var(--green);border-color:var(--green)}
+.item-main{flex:1;min-width:0}
+.item-title{font-size:14px}
+.item-title.done{text-decoration:line-through;color:var(--faint)}
+.meta{font-size:11px;color:var(--faint);margin-top:3px}
+.priority{width:8px;height:8px;border-radius:50%;flex:0 0 8px}
+.priority.high{background:var(--coral)} .priority.medium{background:var(--amber)} .priority.low{background:var(--muted)}
+.icon-btn{border:0;background:transparent;color:var(--faint);padding:7px;border-radius:7px}
+.icon-btn:hover{color:var(--coral);background:var(--coralDim)}
+.range{width:100%;accent-color:var(--violet)}
+.habit-grid{display:grid;grid-template-columns:1fr auto auto;gap:14px;align-items:center}
+.days{display:flex;gap:5px}
+.day{width:29px;height:29px;border-radius:7px;border:1px solid var(--border);background:var(--surface2);color:var(--faint)}
+.day.on{background:var(--tealDim);border-color:var(--teal);color:var(--teal)}
+.kanban{display:flex;gap:12px;overflow:auto;padding-bottom:8px}
+.column{min-width:245px;background:var(--surface2);border:1px solid var(--border2);border-radius:15px;padding:12px}
+.column.dragover{outline:1px dashed var(--teal)}
+.column-title{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:10px}
+.job{background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:12px;margin-top:8px}
+.job:first-child{margin-top:0}
+.job[draggable=true]{cursor:grab}
+.job-company{font-size:13px;font-weight:700}
+.job-role{font-size:12px;color:var(--muted);margin-top:4px}
+.note{display:flex;gap:10px;padding:13px 2px;border-top:1px solid var(--border2)}
+.note:first-child{border-top:0}
+.note-dot{width:8px;height:8px;border-radius:50%;margin-top:5px;flex:0 0 8px}
+.empty{color:var(--faint);font-size:13px;padding:10px 0}
+.analytics{margin-top:18px}
+.bars{height:150px;display:flex;align-items:end;gap:10px;margin-top:12px}
+.bar-wrap{height:100%;flex:1;display:flex;align-items:end;justify-content:center}
+.bar{width:65%;max-width:36px;background:var(--teal);border-radius:5px 5px 0 0;min-height:2px}
+.bar-label{font-size:10px;color:var(--faint);margin-top:6px;text-align:center}
+.analytics-inner{display:grid;grid-template-columns:2fr 1fr;gap:25px}
+.metrics{display:flex;flex-direction:column;justify-content:center;gap:18px}
+.mobile-menu{display:none}
+.toast{position:fixed;right:18px;bottom:18px;background:var(--surface2);border:1px solid var(--border);padding:10px 14px;border-radius:10px;color:var(--text);font-size:12px;opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none}
+.toast.show{opacity:1;transform:translateY(0)}
+@media(max-width:900px){
+ .sidebar{width:190px;flex-basis:190px}
+ .dashboard-grid{grid-template-columns:1fr}
+ .analytics-inner{grid-template-columns:1fr}
+}
+@media(max-width:700px){
+ .app{display:block}
+ .sidebar{width:100%;height:auto;padding:10px;display:block;border-right:0;border-bottom:1px solid var(--border)}
+ .brand{display:none}
+ .nav{flex-direction:row;overflow:auto}
+ .nav button{white-space:nowrap}
+ .sync{display:none}
+ .main{padding:18px 12px}
+ .stats{grid-template-columns:1fr 1fr 1fr;gap:7px}
+ .stat{padding:12px 9px}
+ .stat-value{font-size:22px}
+ .stat-label{font-size:10px}
+ .page-title{font-size:25px}
+ .habit-grid{grid-template-columns:1fr auto}
+ .habit-grid>.days{grid-column:1/-1;overflow:auto}
+}
 </style>
 </head>
 <body>
-<div id="root"></div>
+<div id="app" class="app">
+  <aside class="sidebar">
+    <div class="brand"><span class="brand-mark">✦</span><span>Command Center</span></div>
+    <nav class="nav" id="nav"></nav>
+    <div class="sync"><span class="sync-dot" id="syncDot"></span><span id="syncText">Ready</span></div>
+  </aside>
+  <main class="main"><div class="container" id="view"></div></main>
+</div>
+<div class="toast" id="toast"></div>
 
-<script type="text/babel" data-type="module" data-presets="react">
-import React, { useState, useEffect, useRef, useCallback } from "https://esm.sh/react@18";
-import { createRoot } from "https://esm.sh/react-dom@18/client";
-import {
-  LayoutDashboard, CheckSquare, Target, Flame, Briefcase, StickyNote,
-  Plus, Trash2, X, Calendar, TrendingUp, Droplet, BookOpen, Dumbbell,
-  Brain, Code2, Sparkles, GripVertical, Check, ChevronDown, Clock,
-  ArrowRight, Building2,
-} from "https://esm.sh/lucide-react@0.383.0?deps=react@18";
-import {
-  BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid,
-} from "https://esm.sh/recharts@2.12.7?deps=react@18,react-dom@18";
+<script>
+(function(){
+"use strict";
 
-/* ---------------------------------------------------------------------- */
-/* Theme + constants                                                      */
-/* ---------------------------------------------------------------------- */
-
-const T = {
-  bg: "#0A0E13",
-  surface: "#12181F",
-  surfaceAlt: "#1A222C",
-  border: "#232C38",
-  borderSoft: "#1B232E",
-  text: "#E7ECF2",
-  muted: "#8492A3",
-  faint: "#4E5B6C",
-  teal: "#2FE0C4",
-  tealDim: "#1B3B36",
-  amber: "#F5A623",
-  amberDim: "#3B2E14",
-  coral: "#FB7185",
-  coralDim: "#3A1E23",
-  green: "#3DDC97",
-  greenDim: "#173629",
-  violet: "#A78BFA",
-  violetDim: "#2A2340",
-};
-
-const STORAGE_KEY = "lifeos:v1:data";
-
-const STAGES = ["Wishlist", "Applied", "Screening", "Interview", "Final Round", "Offer", "Closed"];
-
-const HABIT_ICONS = { droplet: Droplet, book: BookOpen, dumbbell: Dumbbell, brain: Brain, code: Code2, sparkles: Sparkles };
-
-const NAV = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "tasks", label: "Tasks", icon: CheckSquare },
-  { id: "goals", label: "Goals", icon: Target },
-  { id: "habits", label: "Habits", icon: Flame },
-  { id: "career", label: "Career", icon: Briefcase },
-  { id: "notes", label: "Notes", icon: StickyNote },
+const KEY="lifeos:standalone:v2";
+const stages=["Wishlist","Applied","Screening","Interview","Final Round","Offer","Closed"];
+const navItems=[
+  ["dashboard","⌂","Dashboard"],["tasks","✓","Tasks"],["goals","◎","Goals"],
+  ["habits","🔥","Habits"],["career","▣","Career"],["notes","▤","Notes"]
 ];
+let tab="dashboard", filter="all", dragId=null, toastTimer=null;
 
-/* ---------------------------------------------------------------------- */
-/* Helpers                                                                 */
-/* ---------------------------------------------------------------------- */
+const uid=()=>Math.random().toString(36).slice(2,10);
+const iso=(d=new Date())=>{const x=new Date(d);return x.toISOString().slice(0,10)};
+const daysAgo=n=>{const d=new Date();d.setDate(d.getDate()-n);return iso(d)};
+const fmt=s=>s?new Date(s+"T00:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric"}):"";
+const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+const today=()=>iso();
 
-const uid = () => Math.random().toString(36).slice(2, 10);
-const isoDate = (d = new Date()) => d.toISOString().slice(0, 10);
-const daysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return isoDate(d); };
-const fmtShort = (iso) => { if (!iso) return ""; const d = new Date(iso + "T00:00:00"); return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }); };
-const dayLabel = (iso) => { const d = new Date(iso + "T00:00:00"); return d.toLocaleDateString(undefined, { weekday: "short" }).slice(0, 2); };
+function defaults(){
+ const t0=daysAgo(0),t1=daysAgo(1),t2=daysAgo(2);
+ return {
+  tasks:[
+   {id:uid(),title:"Finish dashboard mockups",priority:"high",done:false,dueDate:daysAgo(-1),category:"Projects",createdAt:t2},
+   {id:uid(),title:"Reply to recruiter email",priority:"high",done:false,dueDate:t0,category:"Career",createdAt:t2},
+   {id:uid(),title:"Read two chapters",priority:"medium",done:false,dueDate:daysAgo(-2),category:"Learning",createdAt:t1},
+   {id:uid(),title:"Grocery run",priority:"low",done:false,dueDate:null,category:"Personal",createdAt:t1},
+   {id:uid(),title:"Set up project repo",priority:"medium",done:true,dueDate:null,category:"Projects",createdAt:t2,completedAt:t1},
+   {id:uid(),title:"Morning workout",priority:"low",done:true,dueDate:null,category:"Health",createdAt:t0,completedAt:t0},
+   {id:uid(),title:"Plan the week",priority:"medium",done:true,dueDate:null,category:"Personal",createdAt:t0,completedAt:t0}
+  ],
+  goals:[
+   {id:uid(),name:"Land a new role",category:"Career",progress:72},
+   {id:uid(),name:"Ship the Life OS build",category:"Personal Projects",progress:58},
+   {id:uid(),name:"Finish the systems design course",category:"Learning",progress:41}
+  ],
+  habits:[
+   {id:uid(),name:"Water",icon:"💧",doneDates:[t0,t1,t2]},
+   {id:uid(),name:"Learning",icon:"📚",doneDates:[t0,t2]},
+   {id:uid(),name:"Exercise",icon:"🏋️",doneDates:[t0,t1]},
+   {id:uid(),name:"Meditation",icon:"🧠",doneDates:[t1]},
+   {id:uid(),name:"Project work",icon:"⌨️",doneDates:[t0,t1,t2]}
+  ],
+  career:[
+   {id:uid(),company:"Nimbus Analytics",role:"Frontend Engineer",appliedDate:daysAgo(10),recruiter:"Priya Menon",stage:"Interview",notes:"Second round scheduled.",followUpDate:daysAgo(-3)},
+   {id:uid(),company:"Fieldstone",role:"Product Designer",appliedDate:daysAgo(18),recruiter:"",stage:"Applied",notes:"",followUpDate:daysAgo(-1)},
+   {id:uid(),company:"Kestrel Labs",role:"Full Stack Developer",appliedDate:daysAgo(4),recruiter:"Sam O.",stage:"Screening",notes:"Phone screen went well.",followUpDate:null},
+   {id:uid(),company:"Willow & Co",role:"UX Engineer",appliedDate:daysAgo(30),recruiter:"",stage:"Wishlist",notes:"Dream company, wait for referral.",followUpDate:null},
+   {id:uid(),company:"Anchorpoint",role:"Software Engineer",appliedDate:daysAgo(25),recruiter:"Dana K.",stage:"Closed",notes:"Went with another candidate.",followUpDate:null}
+  ],
+  notes:[
+   {id:uid(),text:"Idea: weekly review ritual every Sunday evening",type:"idea",createdAt:t1},
+   {id:uid(),text:"Ask about relocation policy at Nimbus",type:"reminder",createdAt:t0},
+   {id:uid(),text:"Book recommendation from Dana: Designing Data-Intensive Applications",type:"note",createdAt:t2}
+  ]
+ };
+}
+function load(){
+ try{
+  const x=JSON.parse(localStorage.getItem(KEY));
+  return x && x.tasks && x.goals && x.habits && x.career && x.notes ? x : defaults();
+ }catch(e){return defaults()}
+}
+let data=load();
 
-/* Local persistence — plain localStorage, wrapped to look async so the
-   rest of the app doesn't care whether storage is local or remote. */
-const storage = {
-  async get(key) {
-    const v = localStorage.getItem(key);
-    if (v === null) throw new Error("not found");
-    return { key, value: v };
-  },
-  async set(key, value) {
-    localStorage.setItem(key, value);
-    return { key, value };
-  },
-};
+function save(){
+ try{
+  localStorage.setItem(KEY,JSON.stringify(data));
+  document.getElementById("syncText").textContent="Saved locally";
+ }catch(e){
+  document.getElementById("syncText").textContent="Storage unavailable";
+ }
+}
+function notify(msg){
+ const el=document.getElementById("toast");el.textContent=msg;el.classList.add("show");
+ clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove("show"),1600);
+}
+function update(fn){fn(data);save();render()}
 
-function defaultData() {
-  const t0 = daysAgo(0), t1 = daysAgo(1), t2 = daysAgo(2);
-  return {
-    tasks: [
-      { id: uid(), title: "Finish dashboard mockups", priority: "high", done: false, dueDate: daysAgo(-1), category: "Projects", createdAt: t2 },
-      { id: uid(), title: "Reply to recruiter email", priority: "high", done: false, dueDate: t0, category: "Career", createdAt: t2 },
-      { id: uid(), title: "Read two chapters", priority: "medium", done: false, dueDate: daysAgo(-2), category: "Learning", createdAt: t1 },
-      { id: uid(), title: "Grocery run", priority: "low", done: false, dueDate: null, category: "Personal", createdAt: t1 },
-      { id: uid(), title: "Set up project repo", priority: "medium", done: true, dueDate: null, category: "Projects", createdAt: t2, completedAt: t1 },
-      { id: uid(), title: "Morning workout", priority: "low", done: true, dueDate: null, category: "Health", createdAt: t0, completedAt: t0 },
-      { id: uid(), title: "Plan the week", priority: "medium", done: true, dueDate: null, category: "Personal", createdAt: t0, completedAt: t0 },
-    ],
-    goals: [
-      { id: uid(), name: "Land a new role", category: "Career", progress: 72 },
-      { id: uid(), name: "Ship the Life OS build", category: "Personal Projects", progress: 58 },
-      { id: uid(), name: "Finish the systems design course", category: "Learning", progress: 41 },
-    ],
-    habits: [
-      { id: uid(), name: "Water", icon: "droplet", doneDates: [t0, t1, t2] },
-      { id: uid(), name: "Learning", icon: "book", doneDates: [t0, t2] },
-      { id: uid(), name: "Exercise", icon: "dumbbell", doneDates: [t0, t1] },
-      { id: uid(), name: "Meditation", icon: "brain", doneDates: [t1] },
-      { id: uid(), name: "Project work", icon: "code", doneDates: [t0, t1, t2] },
-    ],
-    career: [
-      { id: uid(), company: "Nimbus Analytics", role: "Frontend Engineer", appliedDate: daysAgo(10), recruiter: "Priya Menon", stage: "Interview", notes: "Second round scheduled.", followUpDate: daysAgo(-3) },
-      { id: uid(), company: "Fieldstone", role: "Product Designer", appliedDate: daysAgo(18), recruiter: "", stage: "Applied", notes: "", followUpDate: daysAgo(-1) },
-      { id: uid(), company: "Kestrel Labs", role: "Full Stack Developer", appliedDate: daysAgo(4), recruiter: "Sam O.", stage: "Screening", notes: "Phone screen went well.", followUpDate: null },
-      { id: uid(), company: "Willow & Co", role: "UX Engineer", appliedDate: daysAgo(30), recruiter: "", stage: "Wishlist", notes: "Dream company, wait for referral.", followUpDate: null },
-      { id: uid(), company: "Anchorpoint", role: "Software Engineer", appliedDate: daysAgo(25), recruiter: "Dana K.", stage: "Closed", notes: "Went with another candidate.", followUpDate: null },
-    ],
-    notes: [
-      { id: uid(), text: "Idea: weekly review ritual every Sunday evening", type: "idea", createdAt: t1 },
-      { id: uid(), text: "Ask about relocation policy at Nimbus", type: "reminder", createdAt: t0 },
-      { id: uid(), text: "Book recommendation from Dana: Designing Data-Intensive Applications", type: "note", createdAt: t2 },
-    ],
-  };
+function nav(){
+ document.getElementById("nav").innerHTML=navItems.map(([id,icon,label])=>
+  `<button class="${tab===id?"active":""}" data-tab="${id}"><span>${icon}</span>${label}</button>`).join("");
+ document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{tab=b.dataset.tab;filter="all";render()});
+}
+function shell(title,sub){
+ return `<div><h1 class="page-title">${title}</h1><div class="subtitle">${sub||""}</div></div>`;
+}
+function stat(value,label,color,id){
+ return `<button class="stat" data-go="${id||""}"><div class="stat-value"><span class="dot" style="background:${color}"></span>${value}</div><div class="stat-label">${label}</div></button>`;
+}
+function dashboard(){
+ const hp=data.tasks.filter(t=>!t.done&&t.priority==="high").length;
+ const pending=data.tasks.filter(t=>!t.done&&t.priority!=="high").length;
+ const completed=data.tasks.filter(t=>t.done&&t.completedAt===today()).length;
+ const avg=Math.round(data.goals.reduce((a,g)=>a+Number(g.progress),0)/Math.max(1,data.goals.length));
+ const last7=Array.from({length:7},(_,i)=>daysAgo(6-i));
+ const consistency=Math.round(data.habits.reduce((sum,h)=>sum+last7.filter(d=>h.doneDates.includes(d)).length,0)/Math.max(1,data.habits.length*7)*100);
+ const upcoming=[...data.tasks.filter(t=>!t.done&&t.dueDate).map(t=>({label:t.title,date:t.dueDate,kind:"Task"})),
+  ...data.career.filter(c=>c.followUpDate).map(c=>({label:"Follow up — "+c.company,date:c.followUpDate,kind:"Career"}))]
+  .sort((a,b)=>a.date.localeCompare(b.date)).slice(0,5);
+ const goals=data.goals.map(g=>`<div class="goal"><div class="row"><span class="goal-name">${esc(g.name)}</span><span class="meta">${g.progress}%</span></div><div class="progress"><i style="width:${Math.max(0,Math.min(100,g.progress))}%"></i></div></div>`).join("");
+ const habits=data.habits.map(h=>{
+  const on=h.doneDates.includes(today());
+  return `<button class="habit-row ${on?"done":""}" data-habit="${h.id}"><span class="iconbox">${esc(h.icon)}</span><span>${esc(h.name)}</span><span style="margin-left:auto">${on?"✓":""}</span></button>`
+ }).join("");
+ const upcomingHtml=upcoming.length?upcoming.map(u=>`<div class="row"><span style="font-size:13px">${esc(u.label)}</span><span class="meta">${fmt(u.date)}</span></div>`).join(""):`<div class="empty">Nothing scheduled.</div>`;
+ const bars=last7.map(d=>{
+   const n=data.tasks.filter(t=>t.done&&t.completedAt===d).length;
+   const h=Math.min(100,n*24);
+   return `<div class="bar-wrap"><div><div class="bar" style="height:${Math.max(2,h)}px"></div><div class="bar-label">${new Date(d+"T00:00:00").toLocaleDateString(undefined,{weekday:"short"}).slice(0,2)}</div></div></div>`
+ }).join("");
+ return `${shell(greeting()+ " 👋",new Date().toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"}))}
+ <div class="grid stats">${stat(hp,"High priority","var(--coral)","tasks")}${stat(pending,"Pending","var(--amber)","tasks")}${stat(completed,"Completed today","var(--green)","tasks")}</div>
+ <div class="grid dashboard-grid">
+  <section class="card"><div class="section-label">My goals <span style="float:right">avg ${avg}%</span></div>${goals||'<div class="empty">No goals yet.</div>'}</section>
+  <section class="card"><div class="section-label">Habits today <span style="float:right">${consistency}% this week</span></div><div class="stack">${habits}</div></section>
+  <section class="card"><div class="section-label">Upcoming</div><div class="stack">${upcomingHtml}</div></section>
+ </div>
+ <section class="card capture"><div class="section-label">Quick capture</div><form class="form" id="captureForm"><input class="grow" id="captureText" placeholder="Add an idea, task, note, or reminder…" required><select id="captureType"><option>idea</option><option>task</option><option>note</option><option>reminder</option></select><button class="btn">Add</button></form></section>
+ <section class="card analytics"><div class="section-label">Weekly analytics</div><div class="analytics-inner"><div class="bars">${bars}</div><div class="metrics"><div class="row"><span class="meta">Tasks completed</span><b>${last7.reduce((a,d)=>a+data.tasks.filter(t=>t.done&&t.completedAt===d).length,0)}</b></div><div class="row"><span class="meta">Habit consistency</span><b>${consistency}%</b></div><div class="row"><span class="meta">Avg. goal progress</span><b>${avg}%</b></div></div></div></section>`;
+}
+function greeting(){const h=new Date().getHours();return h<12?"Good morning":h<18?"Good afternoon":"Good evening"}
+
+function tasks(){
+ let arr=data.tasks.filter(t=>filter==="pending"?!t.done:filter==="done"?t.done:filter==="high"?(t.priority==="high"&&!t.done):true);
+ const rows=arr.map(t=>`<div class="item"><button class="check ${t.done?"done":""}" data-task-toggle="${t.id}">${t.done?"✓":""}</button><span class="priority ${t.priority}"></span><div class="item-main"><div class="item-title ${t.done?"done":""}">${esc(t.title)}</div><div class="meta">${esc(t.category)}${t.dueDate?" · due "+fmt(t.dueDate):""}</div></div><button class="icon-btn" data-task-delete="${t.id}">✕</button></div>`).join("");
+ return `${shell("Tasks",`${data.tasks.filter(t=>!t.done).length} pending · ${data.tasks.filter(t=>t.done).length} completed`)}
+ <section class="card" style="margin-top:22px"><form class="form" id="taskForm"><input class="grow" id="taskTitle" placeholder="What needs doing?" required><select id="taskPriority"><option value="high">High priority</option><option value="medium" selected>Medium priority</option><option value="low">Low priority</option></select><input id="taskDue" type="date"><input id="taskCategory" placeholder="Category"><button class="btn">Add task</button></form></section>
+ <div class="filters">${[["all","All"],["pending","Pending"],["high","High priority"],["done","Completed"]].map(x=>`<button class="filter ${filter===x[0]?"active":""}" data-filter="${x[0]}">${x[1]}</button>`).join("")}</div>
+ <section class="card list">${rows||'<div class="empty">No tasks here. Add one above to get started.</div>'}</section>`;
+}
+function goals(){
+ const rows=data.goals.map(g=>`<section class="card"><div class="row"><div><b>${esc(g.name)}</b><div class="meta">${esc(g.category)}</div></div><div><b style="color:var(--violet)">${g.progress}%</b><button class="icon-btn" data-goal-delete="${g.id}">✕</button></div></div><input class="range" data-goal-progress="${g.id}" type="range" min="0" max="100" value="${g.progress}" style="margin-top:14px"></section>`).join("");
+ return `${shell("Goals",`${data.goals.length} tracked`)}<section class="card" style="margin-top:22px"><form class="form" id="goalForm"><input class="grow" id="goalName" placeholder="Goal name" required><input id="goalCategory" placeholder="Category"><button class="btn">Add goal</button></form></section><div class="stack" style="margin-top:18px">${rows||'<div class="empty">No goals yet.</div>'}</div>`;
+}
+function habits(){
+ const last7=Array.from({length:7},(_,i)=>daysAgo(6-i));
+ const rows=data.habits.map(h=>{
+  const streak=(()=>{let n=0,d=new Date();while(h.doneDates.includes(iso(d))){n++;d.setDate(d.getDate()-1)}return n})();
+  return `<section class="card habit-grid"><div class="row"><span class="iconbox">${esc(h.icon)}</span><div><b>${esc(h.name)}</b><div class="meta">🔥 ${streak} day streak</div></div></div><div class="days">${last7.map(d=>`<button class="day ${h.doneDates.includes(d)?"on":""}" data-habit-day="${h.id}|${d}">${new Date(d+"T00:00:00").toLocaleDateString(undefined,{weekday:"short"}).slice(0,1)}</button>`).join("")}</div><button class="icon-btn" data-habit-delete="${h.id}">✕</button></section>`
+ }).join("");
+ return `${shell("Habits",`${data.habits.length} tracked`)}<section class="card" style="margin-top:22px"><form class="form" id="habitForm"><input class="grow" id="habitName" placeholder="New habit name" required><select id="habitIcon"><option>💧</option><option>📚</option><option>🏋️</option><option>🧠</option><option>⌨️</option><option>✨</option></select><button class="btn">Add habit</button></form></section><div class="stack" style="margin-top:18px">${rows||'<div class="empty">No habits yet.</div>'}</div>`;
+}
+function career(){
+ const cols=stages.map(stage=>{
+  const jobs=data.career.filter(c=>c.stage===stage);
+  return `<div class="column" data-stage="${esc(stage)}"><div class="column-title"><span>${esc(stage)}</span><span>${jobs.length}</span></div>${jobs.map(c=>`<div class="job" draggable="true" data-job="${c.id}"><div class="row"><span class="job-company">${esc(c.company)}</span><button class="icon-btn" data-job-delete="${c.id}">✕</button></div><div class="job-role">${esc(c.role)}</div><div class="meta">applied ${fmt(c.appliedDate)}${c.followUpDate?" · ↻ "+fmt(c.followUpDate):""}</div>${stage!=="Closed"?`<button class="btn secondary" style="width:100%;margin-top:9px;padding:7px" data-advance="${c.id}">Advance →</button>`:""}</div>`).join("")}</div>`
+ }).join("");
+ return `${shell("Career",`${data.career.length} applications tracked`)}<section class="card" style="margin-top:22px"><form class="form" id="careerForm"><input class="grow" id="jobCompany" placeholder="Company" required><input class="grow" id="jobRole" placeholder="Role" required><input id="jobRecruiter" placeholder="Recruiter"><input id="jobFollow" type="date"><button class="btn">Add</button></form></section><div class="kanban" style="margin-top:18px">${cols}</div>`;
+}
+function notes(){
+ const rows=data.notes.filter(n=>filter==="all"||n.type===filter).map(n=>{
+  const c={idea:"var(--violet)",task:"var(--teal)",note:"var(--muted)",reminder:"var(--amber)"}[n.type]||"var(--muted)";
+  return `<div class="note"><span class="note-dot" style="background:${c}"></span><div style="flex:1"><div style="font-size:14px">${esc(n.text)}</div><div class="meta">${esc(n.type)} · ${fmt(n.createdAt)}</div></div><button class="icon-btn" data-note-delete="${n.id}">✕</button></div>`
+ }).join("");
+ return `${shell("Notes",`${data.notes.length} captured`)}<section class="card" style="margin-top:22px"><form class="form" id="noteForm"><input class="grow" id="noteText" placeholder="Capture a thought…" required><select id="noteType"><option>note</option><option>idea</option><option>reminder</option><option>task</option></select><button class="btn">Add</button></form></section><div class="filters">${["all","idea","note","reminder","task"].map(x=>`<button class="filter ${filter===x?"active":""}" data-filter="${x}">${x}</button>`).join("")}</div><section class="card">${rows||'<div class="empty">Nothing here yet.</div>'}</section>`;
 }
 
-/* ---------------------------------------------------------------------- */
-/* Small building blocks                                                  */
-/* ---------------------------------------------------------------------- */
-
-function Card({ children, style, className = "" }) {
-  return (
-    <div
-      className={`rounded-2xl ${className}`}
-      style={{ background: T.surface, border: `1px solid ${T.border}`, ...style }}
-    >
-      {children}
-    </div>
-  );
+function render(){
+ nav();
+ const v=document.getElementById("view");
+ v.innerHTML=tab==="dashboard"?dashboard():tab==="tasks"?tasks():tab==="goals"?goals():tab==="habits"?habits():tab==="career"?career():notes();
+ bind();
 }
-
-function SectionLabel({ children }) {
-  return (
-    <div className="uppercase tracking-widest text-xs font-medium mb-3" style={{ color: T.faint, letterSpacing: "0.12em" }}>
-      {children}
-    </div>
-  );
+function bind(){
+ document.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{if(b.dataset.go){tab=b.dataset.go;render()}});
+ document.querySelectorAll("[data-filter]").forEach(b=>b.onclick=()=>{filter=b.dataset.filter;render()});
+ document.querySelectorAll("[data-habit]").forEach(b=>b.onclick=()=>update(d=>{const h=d.habits.find(x=>x.id===b.dataset.habit);const t=today();h.doneDates=h.doneDates.includes(t)?h.doneDates.filter(x=>x!==t):[...h.doneDates,t];}));
+ document.querySelectorAll("[data-task-toggle]").forEach(b=>b.onclick=()=>update(d=>{const t=d.tasks.find(x=>x.id===b.dataset.taskToggle);t.done=!t.done;t.completedAt=t.done?today():null}));
+ document.querySelectorAll("[data-task-delete]").forEach(b=>b.onclick=()=>update(d=>{d.tasks=d.tasks.filter(x=>x.id!==b.dataset.taskDelete)}));
+ document.querySelectorAll("[data-goal-delete]").forEach(b=>b.onclick=()=>update(d=>{d.goals=d.goals.filter(x=>x.id!==b.dataset.goalDelete)}));
+ document.querySelectorAll("[data-goal-progress]").forEach(b=>b.oninput=()=>{const g=data.goals.find(x=>x.id===b.dataset.goalProgress);g.progress=Number(b.value);save()});
+ document.querySelectorAll("[data-habit-day]").forEach(b=>b.onclick=()=>{const [id,dte]=b.dataset.habitDay.split("|");update(d=>{const h=d.habits.find(x=>x.id===id);h.doneDates=h.doneDates.includes(dte)?h.doneDates.filter(x=>x!==dte):[...h.doneDates,dte]})});
+ document.querySelectorAll("[data-habit-delete]").forEach(b=>b.onclick=()=>update(d=>{d.habits=d.habits.filter(x=>x.id!==b.dataset.habitDelete)}));
+ document.querySelectorAll("[data-note-delete]").forEach(b=>b.onclick=()=>update(d=>{d.notes=d.notes.filter(x=>x.id!==b.dataset.noteDelete)}));
+ document.querySelectorAll("[data-job-delete]").forEach(b=>b.onclick=()=>update(d=>{d.career=d.career.filter(x=>x.id!==b.dataset.jobDelete)}));
+ document.querySelectorAll("[data-advance]").forEach(b=>b.onclick=()=>update(d=>{const c=d.career.find(x=>x.id===b.dataset.advance);const i=stages.indexOf(c.stage);if(i<stages.length-1)c.stage=stages[i+1]}));
+ document.querySelectorAll(".job[draggable=true]").forEach(j=>{j.ondragstart=()=>dragId=j.dataset.job});
+ document.querySelectorAll(".column").forEach(c=>{
+  c.ondragover=e=>{e.preventDefault();c.classList.add("dragover")};
+  c.ondragleave=()=>c.classList.remove("dragover");
+  c.ondrop=e=>{e.preventDefault();c.classList.remove("dragover");if(dragId){update(d=>{const x=d.career.find(x=>x.id===dragId);if(x)x.stage=c.dataset.stage});dragId=null}}
+ });
+ const f=document.getElementById("captureForm");
+ if(f)f.onsubmit=e=>{e.preventDefault();const text=document.getElementById("captureText").value.trim(),type=document.getElementById("captureType").value;update(d=>{d.notes.unshift({id:uid(),text,type,createdAt:today()});if(type==="task")d.tasks.unshift({id:uid(),title:text,priority:"medium",done:false,dueDate:null,category:"Inbox",createdAt:today()})});notify("Captured")};
+ const tf=document.getElementById("taskForm");
+ if(tf)tf.onsubmit=e=>{e.preventDefault();update(d=>d.tasks.unshift({id:uid(),title:document.getElementById("taskTitle").value.trim(),priority:document.getElementById("taskPriority").value,done:false,dueDate:document.getElementById("taskDue").value||null,category:document.getElementById("taskCategory").value.trim()||"General",createdAt:today()}))};
+ const gf=document.getElementById("goalForm");
+ if(gf)gf.onsubmit=e=>{e.preventDefault();update(d=>d.goals.push({id:uid(),name:document.getElementById("goalName").value.trim(),category:document.getElementById("goalCategory").value.trim()||"General",progress:0}))};
+ const hf=document.getElementById("habitForm");
+ if(hf)hf.onsubmit=e=>{e.preventDefault();update(d=>d.habits.push({id:uid(),name:document.getElementById("habitName").value.trim(),icon:document.getElementById("habitIcon").value,doneDates:[]}))};
+ const cf=document.getElementById("careerForm");
+ if(cf)cf.onsubmit=e=>{e.preventDefault();update(d=>d.career.unshift({id:uid(),company:document.getElementById("jobCompany").value.trim(),role:document.getElementById("jobRole").value.trim(),appliedDate:today(),recruiter:document.getElementById("jobRecruiter").value.trim(),stage:"Wishlist",notes:"",followUpDate:document.getElementById("jobFollow").value||null}))};
+ const nf=document.getElementById("noteForm");
+ if(nf)nf.onsubmit=e=>{e.preventDefault();update(d=>d.notes.unshift({id:uid(),text:document.getElementById("noteText").value.trim(),type:document.getElementById("noteType").value,createdAt:today()}))};
 }
-
-function ProgressBar({ value, color = T.teal }) {
-  return (
-    <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: T.surfaceAlt }}>
-      <div className="h-full rounded-full transition-all" style={{ width: `${Math.max(0, Math.min(100, value))}%`, background: color }} />
-    </div>
-  );
-}
-
-function PriorityDot({ priority }) {
-  const c = priority === "high" ? T.coral : priority === "medium" ? T.amber : T.muted;
-  return <span className="inline-block w-2 h-2 rounded-full flex-shrink-0" style={{ background: c }} />;
-}
-
-function IconBtn({ onClick, title, children }) {
-  return (
-    <button
-      onClick={onClick}
-      title={title}
-      className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors flex-shrink-0"
-      style={{ color: T.faint }}
-      onMouseEnter={(e) => { e.currentTarget.style.color = T.coral; e.currentTarget.style.background = T.coralDim; }}
-      onMouseLeave={(e) => { e.currentTarget.style.color = T.faint; e.currentTarget.style.background = "transparent"; }}
-    >
-      {children}
-    </button>
-  );
-}
-
-function TextInput(props) {
-  return (
-    <input
-      {...props}
-      className={`w-full px-3 py-2 rounded-lg text-sm outline-none transition-colors ${props.className || ""}`}
-      style={{ background: T.surfaceAlt, border: `1px solid ${T.border}`, color: T.text, ...props.style }}
-    />
-  );
-}
-
-function Select({ value, onChange, options, style }) {
-  return (
-    <select
-      value={value}
-      onChange={onChange}
-      className="px-3 py-2 rounded-lg text-sm outline-none"
-      style={{ background: T.surfaceAlt, border: `1px solid ${T.border}`, color: T.text, ...style }}
-    >
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>{o.label}</option>
-      ))}
-    </select>
-  );
-}
-
-function PrimaryButton({ onClick, children, type = "button", full }) {
-  return (
-    <button
-      type={type}
-      onClick={onClick}
-      className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 transition-opacity hover:opacity-90 ${full ? "w-full" : ""}`}
-      style={{ background: T.teal, color: "#062622" }}
-    >
-      {children}
-    </button>
-  );
-}
-
-/* ---------------------------------------------------------------------- */
-/* Root component                                                         */
-/* ---------------------------------------------------------------------- */
-
-function LifeCommandCenter() {
-  const [tab, setTab] = useState("dashboard");
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [saveState, setSaveState] = useState("idle");
-  const saveTimer = useRef(null);
-  const loadedOnce = useRef(false);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await storage.get(STORAGE_KEY);
-        setData(res ? JSON.parse(res.value) : defaultData());
-      } catch (e) {
-        setData(defaultData());
-      } finally {
-        setLoading(false);
-        loadedOnce.current = true;
-      }
-    })();
-  }, []);
-
-  useEffect(() => {
-    if (!loadedOnce.current || !data) return;
-    setSaveState("saving");
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(async () => {
-      try {
-        await storage.set(STORAGE_KEY, JSON.stringify(data));
-        setSaveState("saved");
-      } catch (e) {
-        setSaveState("idle");
-      }
-    }, 400);
-    return () => clearTimeout(saveTimer.current);
-  }, [data]);
-
-  const update = useCallback((fn) => setData((d) => fn(structuredClone(d))), []);
-
-  if (loading || !data) {
-    return (
-      <div className="w-full h-full flex items-center justify-center" style={{ background: T.bg, minHeight: "100vh" }}>
-        <div className="flex items-center gap-3" style={{ color: T.muted }}>
-          <div className="w-4 h-4 rounded-full animate-spin" style={{ border: `2px solid ${T.border}`, borderTopColor: T.teal }} />
-          <span className="text-sm">Loading your command center…</span>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="w-full flex flex-col md:flex-row" style={{ background: T.bg, minHeight: "100vh", fontFamily: "'Inter', sans-serif" }}>
-      <Sidebar tab={tab} setTab={setTab} saveState={saveState} />
-
-      <main className="flex-1 p-4 sm:p-6 md:p-8 overflow-x-hidden">
-        {tab === "dashboard" && <Dashboard data={data} update={update} setTab={setTab} />}
-        {tab === "tasks" && <TasksView data={data} update={update} />}
-        {tab === "goals" && <GoalsView data={data} update={update} />}
-        {tab === "habits" && <HabitsView data={data} update={update} />}
-        {tab === "career" && <CareerView data={data} update={update} />}
-        {tab === "notes" && <NotesView data={data} update={update} />}
-      </main>
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------------------- */
-/* Sidebar                                                                 */
-/* ---------------------------------------------------------------------- */
-
-function Sidebar({ tab, setTab, saveState }) {
-  return (
-    <aside
-      className="md:w-56 md:flex-shrink-0 flex md:flex-col justify-between px-3 sm:px-4 py-3 md:py-6 overflow-x-auto lc-scroll"
-      style={{ background: T.surface, borderBottom: `1px solid ${T.border}`, borderRight: `1px solid ${T.border}` }}
-    >
-      <div className="flex md:flex-col items-center md:items-stretch gap-1 md:gap-1">
-        <div className="hidden md:flex items-center gap-2 px-2 mb-6">
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: T.tealDim }}>
-            <Sparkles size={14} style={{ color: T.teal }} />
-          </div>
-          <span className="lc-display font-semibold text-sm tracking-tight" style={{ color: T.text }}>Command Center</span>
-        </div>
-        {NAV.map((n) => {
-          const Icon = n.icon;
-          const active = tab === n.id;
-          return (
-            <button
-              key={n.id}
-              onClick={() => setTab(n.id)}
-              className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors flex-shrink-0 whitespace-nowrap"
-              style={{ background: active ? T.surfaceAlt : "transparent", color: active ? T.teal : T.muted }}
-            >
-              <Icon size={16} />
-              <span>{n.label}</span>
-            </button>
-          );
-        })}
-      </div>
-      <div className="hidden md:flex items-center gap-2 px-3 pt-4 text-xs" style={{ color: T.faint, borderTop: `1px solid ${T.borderSoft}` }}>
-        <span className="w-1.5 h-1.5 rounded-full" style={{ background: saveState === "saving" ? T.amber : T.green }} />
-        <span className="lc-mono">{saveState === "saving" ? "saving…" : "synced locally"}</span>
-      </div>
-    </aside>
-  );
-}
-
-/* ---------------------------------------------------------------------- */
-/* Dashboard                                                               */
-/* ---------------------------------------------------------------------- */
-
-function greeting() {
-  const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 18) return "Good afternoon";
-  return "Good evening";
-}
-
-function Dashboard({ data, update, setTab }) {
-  const today = isoDate();
-  const highPending = data.tasks.filter((t) => !t.done && t.priority === "high").length;
-  const otherPending = data.tasks.filter((t) => !t.done && t.priority !== "high").length;
-  const completedToday = data.tasks.filter((t) => t.done && t.completedAt === today).length;
-
-  const upcoming = [
-    ...data.tasks.filter((t) => !t.done && t.dueDate).map((t) => ({ id: t.id, label: t.title, date: t.dueDate, kind: "Task" })),
-    ...data.career.filter((c) => c.followUpDate).map((c) => ({ id: c.id, label: `Follow up — ${c.company}`, date: c.followUpDate, kind: "Career" })),
-  ].sort((a, b) => a.date.localeCompare(b.date)).slice(0, 5);
-
-  const last7 = Array.from({ length: 7 }, (_, i) => daysAgo(6 - i));
-  const chartData = last7.map((d) => ({
-    day: dayLabel(d),
-    completed: data.tasks.filter((t) => t.done && t.completedAt === d).length,
-  }));
-
-  const habitCells = last7;
-  const habitConsistency = Math.round(
-    (data.habits.reduce((sum, h) => sum + habitCells.filter((d) => h.doneDates.includes(d)).length, 0) /
-      Math.max(1, data.habits.length * habitCells.length)) * 100
-  );
-  const avgGoalProgress = Math.round(data.goals.reduce((s, g) => s + g.progress, 0) / Math.max(1, data.goals.length));
-
-  const [captureText, setCaptureText] = useState("");
-  const [captureType, setCaptureType] = useState("idea");
-
-  const addCapture = () => {
-    const text = captureText.trim();
-    if (!text) return;
-    update((d) => {
-      d.notes.unshift({ id: uid(), text, type: captureType, createdAt: today });
-      if (captureType === "task") {
-        d.tasks.unshift({ id: uid(), title: text, priority: "medium", done: false, dueDate: null, category: "Inbox", createdAt: today });
-      }
-      return d;
-    });
-    setCaptureText("");
-  };
-
-  return (
-    <div className="max-w-6xl mx-auto flex flex-col gap-6">
-      <div>
-        <h1 className="lc-display text-2xl sm:text-3xl font-semibold" style={{ color: T.text }}>
-          {greeting()} <span style={{ color: T.teal }}>👋</span>
-        </h1>
-        <p className="text-sm mt-1 lc-mono" style={{ color: T.faint }}>
-          {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
-        </p>
-      </div>
-
-      <div>
-        <SectionLabel>Today's focus</SectionLabel>
-        <div className="grid grid-cols-3 gap-3 sm:gap-4">
-          <StatCard color={T.coral} value={highPending} label="High priority" onClick={() => setTab("tasks")} />
-          <StatCard color={T.amber} value={otherPending} label="Pending" onClick={() => setTab("tasks")} />
-          <StatCard color={T.green} value={completedToday} label="Completed today" onClick={() => setTab("tasks")} />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card style={{ padding: 20 }}>
-          <div className="flex items-center justify-between mb-4">
-            <SectionLabel>My goals</SectionLabel>
-            <span className="text-xs lc-mono" style={{ color: T.faint }}>avg {avgGoalProgress}%</span>
-          </div>
-          <div className="flex flex-col gap-4">
-            {data.goals.map((g) => (
-              <div key={g.id}>
-                <div className="flex items-center justify-between text-sm mb-1.5">
-                  <span style={{ color: T.text }}>{g.name}</span>
-                  <span className="lc-mono text-xs" style={{ color: T.muted }}>{g.progress}%</span>
-                </div>
-                <ProgressBar value={g.progress} color={T.violet} />
-              </div>
-            ))}
-            {data.goals.length === 0 && <EmptyHint text="No goals yet. Add one from the Goals tab." />}
-          </div>
-        </Card>
-
-        <Card style={{ padding: 20 }}>
-          <div className="flex items-center justify-between mb-4">
-            <SectionLabel>Habits today</SectionLabel>
-            <span className="text-xs lc-mono" style={{ color: T.faint }}>{habitConsistency}% this week</span>
-          </div>
-          <div className="flex flex-col gap-2.5">
-            {data.habits.map((h) => {
-              const Icon = HABIT_ICONS[h.icon] || Sparkles;
-              const done = h.doneDates.includes(today);
-              return (
-                <button
-                  key={h.id}
-                  onClick={() => update((d) => {
-                    const habit = d.habits.find((x) => x.id === h.id);
-                    habit.doneDates = done ? habit.doneDates.filter((x) => x !== today) : [...habit.doneDates, today];
-                    return d;
-                  })}
-                  className="flex items-center gap-3 text-sm px-2 py-1.5 rounded-lg transition-colors"
-                  style={{ background: done ? T.tealDim : "transparent" }}
-                >
-                  <span className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: done ? "transparent" : T.surfaceAlt, color: done ? T.teal : T.muted }}>
-                    {done ? <Check size={14} /> : <Icon size={14} />}
-                  </span>
-                  <span style={{ color: done ? T.text : T.muted }}>{h.name}</span>
-                </button>
-              );
-            })}
-          </div>
-        </Card>
-
-        <Card style={{ padding: 20 }}>
-          <SectionLabel>Upcoming</SectionLabel>
-          <div className="flex flex-col gap-3">
-            {upcoming.map((u) => (
-              <div key={u.id + u.kind} className="flex items-center justify-between text-sm gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Calendar size={13} style={{ color: T.faint, flexShrink: 0 }} />
-                  <span className="truncate" style={{ color: T.text }}>{u.label}</span>
-                </div>
-                <span className="lc-mono text-xs flex-shrink-0" style={{ color: T.muted }}>{fmtShort(u.date)}</span>
-              </div>
-            ))}
-            {upcoming.length === 0 && <EmptyHint text="Nothing scheduled. Add due dates to see them here." />}
-          </div>
-        </Card>
-      </div>
-
-      <Card style={{ padding: 20 }}>
-        <SectionLabel>Quick capture</SectionLabel>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <TextInput
-            placeholder="Add an idea, task, note, or reminder…"
-            value={captureText}
-            onChange={(e) => setCaptureText(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && addCapture()}
-          />
-          <div className="flex gap-2">
-            <Select
-              value={captureType}
-              onChange={(e) => setCaptureType(e.target.value)}
-              options={[
-                { value: "idea", label: "Idea" },
-                { value: "task", label: "Task" },
-                { value: "note", label: "Note" },
-                { value: "reminder", label: "Reminder" },
-              ]}
-            />
-            <PrimaryButton onClick={addCapture}><Plus size={15} /> Add</PrimaryButton>
-          </div>
-        </div>
-      </Card>
-
-      <Card style={{ padding: 20 }}>
-        <div className="flex items-center justify-between mb-4">
-          <SectionLabel>Weekly analytics</SectionLabel>
-          <TrendingUp size={14} style={{ color: T.faint }} />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="md:col-span-2 h-44">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                <CartesianGrid vertical={false} stroke={T.borderSoft} />
-                <XAxis dataKey="day" tick={{ fill: T.faint, fontSize: 11 }} axisLine={{ stroke: T.border }} tickLine={false} />
-                <YAxis tick={{ fill: T.faint, fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                <Tooltip contentStyle={{ background: T.surfaceAlt, border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 12, color: T.text }} cursor={{ fill: T.surfaceAlt }} />
-                <Bar dataKey="completed" name="Tasks completed" fill={T.teal} radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="flex flex-col justify-center gap-4">
-            <MetricRow label="Tasks completed" value={chartData.reduce((s, c) => s + c.completed, 0)} />
-            <MetricRow label="Habit consistency" value={`${habitConsistency}%`} />
-            <MetricRow label="Avg. goal progress" value={`${avgGoalProgress}%`} />
-          </div>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-function StatCard({ color, value, label, onClick }) {
-  return (
-    <button onClick={onClick} className="text-left rounded-2xl p-4 sm:p-5 transition-transform hover:-translate-y-0.5" style={{ background: T.surface, border: `1px solid ${T.border}` }}>
-      <div className="flex items-center gap-2 mb-2">
-        <span className="w-2 h-2 rounded-full" style={{ background: color }} />
-        <span className="lc-mono text-2xl sm:text-3xl font-medium" style={{ color: T.text }}>{value}</span>
-      </div>
-      <div className="text-xs sm:text-sm" style={{ color: T.muted }}>{label}</div>
-    </button>
-  );
-}
-
-function MetricRow({ label, value }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-sm" style={{ color: T.muted }}>{label}</span>
-      <span className="lc-mono text-sm font-medium" style={{ color: T.text }}>{value}</span>
-    </div>
-  );
-}
-
-function EmptyHint({ text }) {
-  return <p className="text-sm" style={{ color: T.faint }}>{text}</p>;
-}
-
-/* ---------------------------------------------------------------------- */
-/* Tasks                                                                   */
-/* ---------------------------------------------------------------------- */
-
-function TasksView({ data, update }) {
-  const [filter, setFilter] = useState("all");
-  const [title, setTitle] = useState("");
-  const [priority, setPriority] = useState("medium");
-  const [dueDate, setDueDate] = useState("");
-  const [category, setCategory] = useState("");
-
-  const addTask = () => {
-    if (!title.trim()) return;
-    update((d) => {
-      d.tasks.unshift({ id: uid(), title: title.trim(), priority, done: false, dueDate: dueDate || null, category: category.trim() || "General", createdAt: isoDate() });
-      return d;
-    });
-    setTitle(""); setDueDate(""); setCategory("");
-  };
-
-  const toggleDone = (id) => update((d) => {
-    const t = d.tasks.find((x) => x.id === id);
-    t.done = !t.done;
-    t.completedAt = t.done ? isoDate() : undefined;
-    return d;
-  });
-  const removeTask = (id) => update((d) => { d.tasks = d.tasks.filter((x) => x.id !== id); return d; });
-
-  const filtered = data.tasks.filter((t) => {
-    if (filter === "pending") return !t.done;
-    if (filter === "done") return t.done;
-    if (filter === "high") return t.priority === "high" && !t.done;
-    return true;
-  }).sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1));
-
-  return (
-    <div className="max-w-4xl mx-auto flex flex-col gap-6">
-      <ViewHeader title="Tasks" subtitle={`${data.tasks.filter((t) => !t.done).length} pending · ${data.tasks.filter((t) => t.done).length} completed`} />
-
-      <Card style={{ padding: 20 }}>
-        <div className="flex flex-col sm:flex-row gap-2 mb-3">
-          <TextInput placeholder="What needs doing?" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addTask()} />
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Select value={priority} onChange={(e) => setPriority(e.target.value)} options={[{ value: "high", label: "High priority" }, { value: "medium", label: "Medium priority" }, { value: "low", label: "Low priority" }]} />
-          <TextInput type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="w-auto" style={{ width: 150 }} />
-          <TextInput placeholder="Category" value={category} onChange={(e) => setCategory(e.target.value)} className="w-auto" style={{ width: 140 }} />
-          <PrimaryButton onClick={addTask}><Plus size={15} /> Add task</PrimaryButton>
-        </div>
-      </Card>
-
-      <div className="flex gap-2 lc-scroll overflow-x-auto pb-1">
-        {[{ id: "all", label: "All" }, { id: "pending", label: "Pending" }, { id: "high", label: "High priority" }, { id: "done", label: "Completed" }].map((f) => (
-          <button key={f.id} onClick={() => setFilter(f.id)} className="px-3 py-1.5 rounded-lg text-sm flex-shrink-0" style={{ background: filter === f.id ? T.surfaceAlt : "transparent", color: filter === f.id ? T.teal : T.muted, border: `1px solid ${filter === f.id ? T.border : "transparent"}` }}>
-            {f.label}
-          </button>
-        ))}
-      </div>
-
-      <Card>
-        {filtered.length === 0 && <div className="p-6"><EmptyHint text="No tasks here. Add one above to get started." /></div>}
-        {filtered.map((t, i) => (
-          <div key={t.id} className="flex items-center gap-3 px-4 py-3" style={{ borderTop: i === 0 ? "none" : `1px solid ${T.borderSoft}` }}>
-            <button onClick={() => toggleDone(t.id)} className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0" style={{ border: `1.5px solid ${t.done ? T.green : T.border}`, background: t.done ? T.green : "transparent" }}>
-              {t.done && <Check size={12} color="#062622" />}
-            </button>
-            <PriorityDot priority={t.priority} />
-            <div className="flex-1 min-w-0">
-              <div className="text-sm truncate" style={{ color: t.done ? T.faint : T.text, textDecoration: t.done ? "line-through" : "none" }}>{t.title}</div>
-              <div className="flex gap-2 text-xs mt-0.5 lc-mono" style={{ color: T.faint }}>
-                <span>{t.category}</span>
-                {t.dueDate && <span>· due {fmtShort(t.dueDate)}</span>}
-              </div>
-            </div>
-            <IconBtn onClick={() => removeTask(t.id)} title="Delete"><Trash2 size={14} /></IconBtn>
-          </div>
-        ))}
-      </Card>
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------------------- */
-/* Goals                                                                   */
-/* ---------------------------------------------------------------------- */
-
-function GoalsView({ data, update }) {
-  const [name, setName] = useState("");
-  const [category, setCategory] = useState("");
-
-  const addGoal = () => {
-    if (!name.trim()) return;
-    update((d) => { d.goals.push({ id: uid(), name: name.trim(), category: category.trim() || "General", progress: 0 }); return d; });
-    setName(""); setCategory("");
-  };
-  const setProgress = (id, value) => update((d) => { d.goals.find((g) => g.id === id).progress = value; return d; });
-  const removeGoal = (id) => update((d) => { d.goals = d.goals.filter((g) => g.id !== id); return d; });
-
-  return (
-    <div className="max-w-3xl mx-auto flex flex-col gap-6">
-      <ViewHeader title="Goals" subtitle={`${data.goals.length} tracked`} />
-
-      <Card style={{ padding: 20 }}>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <TextInput placeholder="Goal name" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addGoal()} />
-          <TextInput placeholder="Category" value={category} onChange={(e) => setCategory(e.target.value)} className="sm:w-48" />
-          <PrimaryButton onClick={addGoal}><Plus size={15} /> Add goal</PrimaryButton>
-        </div>
-      </Card>
-
-      <div className="flex flex-col gap-3">
-        {data.goals.length === 0 && <Card style={{ padding: 20 }}><EmptyHint text="No goals yet. Add your first one above." /></Card>}
-        {data.goals.map((g) => (
-          <Card key={g.id} style={{ padding: 20 }}>
-            <div className="flex items-center justify-between gap-3 mb-2">
-              <div>
-                <div className="text-sm font-medium" style={{ color: T.text }}>{g.name}</div>
-                <div className="text-xs lc-mono mt-0.5" style={{ color: T.faint }}>{g.category}</div>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="lc-mono text-sm" style={{ color: T.violet }}>{g.progress}%</span>
-                <IconBtn onClick={() => removeGoal(g.id)} title="Delete"><Trash2 size={14} /></IconBtn>
-              </div>
-            </div>
-            <input type="range" min="0" max="100" value={g.progress} onChange={(e) => setProgress(g.id, Number(e.target.value))} className="w-full" style={{ accentColor: T.violet }} />
-          </Card>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------------------- */
-/* Habits                                                                  */
-/* ---------------------------------------------------------------------- */
-
-function streak(doneDates) {
-  let s = 0, d = new Date();
-  while (doneDates.includes(isoDate(d))) { s++; d.setDate(d.getDate() - 1); }
-  return s;
-}
-
-function HabitsView({ data, update }) {
-  const [name, setName] = useState("");
-  const [icon, setIcon] = useState("sparkles");
-  const last7 = Array.from({ length: 7 }, (_, i) => daysAgo(6 - i));
-
-  const addHabit = () => {
-    if (!name.trim()) return;
-    update((d) => { d.habits.push({ id: uid(), name: name.trim(), icon, doneDates: [] }); return d; });
-    setName("");
-  };
-  const toggle = (id, date) => update((d) => {
-    const h = d.habits.find((x) => x.id === id);
-    h.doneDates = h.doneDates.includes(date) ? h.doneDates.filter((x) => x !== date) : [...h.doneDates, date];
-    return d;
-  });
-  const removeHabit = (id) => update((d) => { d.habits = d.habits.filter((h) => h.id !== id); return d; });
-
-  return (
-    <div className="max-w-4xl mx-auto flex flex-col gap-6">
-      <ViewHeader title="Habits" subtitle={`${data.habits.length} tracked`} />
-
-      <Card style={{ padding: 20 }}>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <TextInput placeholder="New habit name" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addHabit()} />
-          <Select value={icon} onChange={(e) => setIcon(e.target.value)} options={Object.keys(HABIT_ICONS).map((k) => ({ value: k, label: k[0].toUpperCase() + k.slice(1) }))} />
-          <PrimaryButton onClick={addHabit}><Plus size={15} /> Add habit</PrimaryButton>
-        </div>
-      </Card>
-
-      <Card style={{ padding: "12px 20px" }}>
-        {data.habits.length === 0 && <div className="py-8"><EmptyHint text="No habits yet. Add one above to start tracking." /></div>}
-        {data.habits.map((h, i) => {
-          const Icon = HABIT_ICONS[h.icon] || Sparkles;
-          return (
-            <div key={h.id} className="flex items-center gap-3 sm:gap-4 py-3 flex-wrap" style={{ borderTop: i === 0 ? "none" : `1px solid ${T.borderSoft}` }}>
-              <div className="flex items-center gap-2.5 min-w-[150px]">
-                <span className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: T.surfaceAlt, color: T.teal }}><Icon size={15} /></span>
-                <div>
-                  <div className="text-sm" style={{ color: T.text }}>{h.name}</div>
-                  <div className="text-xs lc-mono flex items-center gap-1" style={{ color: T.amber }}><Flame size={11} />{streak(h.doneDates)} day streak</div>
-                </div>
-              </div>
-              <div className="flex gap-1.5 ml-auto">
-                {last7.map((d) => {
-                  const on = h.doneDates.includes(d);
-                  return (
-                    <button key={d} onClick={() => toggle(h.id, d)} title={d} className="w-7 h-7 rounded-md flex items-center justify-center text-xs" style={{ background: on ? T.tealDim : T.surfaceAlt, color: on ? T.teal : T.faint, border: `1px solid ${on ? T.teal : T.border}` }}>
-                      {dayLabel(d)[0]}
-                    </button>
-                  );
-                })}
-              </div>
-              <IconBtn onClick={() => removeHabit(h.id)} title="Delete"><Trash2 size={14} /></IconBtn>
-            </div>
-          );
-        })}
-      </Card>
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------------------- */
-/* Career (kanban)                                                         */
-/* ---------------------------------------------------------------------- */
-
-function CareerView({ data, update }) {
-  const [form, setForm] = useState({ company: "", role: "", recruiter: "", followUpDate: "" });
-  const [dragId, setDragId] = useState(null);
-
-  const counts = STAGES.reduce((acc, s) => ({ ...acc, [s]: data.career.filter((c) => c.stage === s).length }), {});
-
-  const addApp = () => {
-    if (!form.company.trim() || !form.role.trim()) return;
-    update((d) => {
-      d.career.unshift({ id: uid(), company: form.company.trim(), role: form.role.trim(), appliedDate: isoDate(), recruiter: form.recruiter.trim(), stage: "Wishlist", notes: "", followUpDate: form.followUpDate || null });
-      return d;
-    });
-    setForm({ company: "", role: "", recruiter: "", followUpDate: "" });
-  };
-  const removeApp = (id) => update((d) => { d.career = d.career.filter((c) => c.id !== id); return d; });
-  const moveApp = (id, stage) => update((d) => { d.career.find((c) => c.id === id).stage = stage; return d; });
-
-  return (
-    <div className="max-w-6xl mx-auto flex flex-col gap-6">
-      <ViewHeader title="Career" subtitle={`${data.career.length} applications tracked`} />
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-        {STAGES.map((s) => (
-          <Card key={s} style={{ padding: 12 }}>
-            <div className="lc-mono text-xl font-medium" style={{ color: T.text }}>{counts[s]}</div>
-            <div className="text-xs mt-0.5" style={{ color: T.muted }}>{s}</div>
-          </Card>
-        ))}
-      </div>
-
-      <Card style={{ padding: 20 }}>
-        <SectionLabel>Add application</SectionLabel>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <TextInput placeholder="Company" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} />
-          <TextInput placeholder="Role" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} />
-          <TextInput placeholder="Recruiter (optional)" value={form.recruiter} onChange={(e) => setForm({ ...form, recruiter: e.target.value })} />
-          <TextInput type="date" value={form.followUpDate} onChange={(e) => setForm({ ...form, followUpDate: e.target.value })} className="sm:w-40" />
-          <PrimaryButton onClick={addApp}><Plus size={15} /> Add</PrimaryButton>
-        </div>
-      </Card>
-
-      <div className="flex gap-4 overflow-x-auto pb-2 lc-scroll">
-        {STAGES.map((stage) => (
-          <div
-            key={stage}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={() => { if (dragId) moveApp(dragId, stage); setDragId(null); }}
-            className="flex-shrink-0 w-64 sm:w-72 rounded-2xl p-3"
-            style={{ background: T.surfaceAlt, border: `1px solid ${T.borderSoft}`, minHeight: 120 }}
-          >
-            <div className="flex items-center justify-between px-1 mb-3">
-              <span className="text-xs font-medium uppercase tracking-wide" style={{ color: T.muted, letterSpacing: "0.08em" }}>{stage}</span>
-              <span className="lc-mono text-xs" style={{ color: T.faint }}>{counts[stage]}</span>
-            </div>
-            <div className="flex flex-col gap-2">
-              {data.career.filter((c) => c.stage === stage).map((c) => (
-                <div
-                  key={c.id}
-                  draggable
-                  onDragStart={() => setDragId(c.id)}
-                  className="rounded-xl p-3 cursor-grab active:cursor-grabbing"
-                  style={{ background: T.surface, border: `1px solid ${T.border}` }}
-                >
-                  <div className="flex items-start justify-between gap-1 mb-1">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <Building2 size={12} style={{ color: T.faint, flexShrink: 0 }} />
-                      <span className="text-sm font-medium truncate" style={{ color: T.text }}>{c.company}</span>
-                    </div>
-                    <IconBtn onClick={() => removeApp(c.id)} title="Delete"><Trash2 size={12} /></IconBtn>
-                  </div>
-                  <div className="text-xs" style={{ color: T.muted }}>{c.role}</div>
-                  <div className="flex items-center justify-between mt-2 text-xs lc-mono" style={{ color: T.faint }}>
-                    <span>applied {fmtShort(c.appliedDate)}</span>
-                    {c.followUpDate && <span style={{ color: T.amber }}>↻ {fmtShort(c.followUpDate)}</span>}
-                  </div>
-                  {stage !== "Closed" && (
-                    <button
-                      onClick={() => moveApp(c.id, STAGES[STAGES.indexOf(stage) + 1])}
-                      className="mt-2 w-full flex items-center justify-center gap-1 text-xs py-1 rounded-md"
-                      style={{ color: T.teal, background: T.tealDim }}
-                    >
-                      Advance <ArrowRight size={11} />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------------------- */
-/* Notes                                                                   */
-/* ---------------------------------------------------------------------- */
-
-const NOTE_TYPES = { idea: T.violet, task: T.teal, note: T.muted, reminder: T.amber };
-
-function NotesView({ data, update }) {
-  const [text, setText] = useState("");
-  const [type, setType] = useState("note");
-  const [filter, setFilter] = useState("all");
-
-  const addNote = () => {
-    if (!text.trim()) return;
-    update((d) => { d.notes.unshift({ id: uid(), text: text.trim(), type, createdAt: isoDate() }); return d; });
-    setText("");
-  };
-  const removeNote = (id) => update((d) => { d.notes = d.notes.filter((n) => n.id !== id); return d; });
-
-  const filtered = data.notes.filter((n) => filter === "all" || n.type === filter);
-
-  return (
-    <div className="max-w-3xl mx-auto flex flex-col gap-6">
-      <ViewHeader title="Notes" subtitle={`${data.notes.length} captured`} />
-
-      <Card style={{ padding: 20 }}>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <TextInput placeholder="Capture a thought…" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addNote()} />
-          <Select value={type} onChange={(e) => setType(e.target.value)} options={[{ value: "note", label: "Note" }, { value: "idea", label: "Idea" }, { value: "reminder", label: "Reminder" }, { value: "task", label: "Task" }]} />
-          <PrimaryButton onClick={addNote}><Plus size={15} /> Add</PrimaryButton>
-        </div>
-      </Card>
-
-      <div className="flex gap-2 lc-scroll overflow-x-auto pb-1">
-        {["all", "idea", "note", "reminder", "task"].map((f) => (
-          <button key={f} onClick={() => setFilter(f)} className="px-3 py-1.5 rounded-lg text-sm capitalize flex-shrink-0" style={{ background: filter === f ? T.surfaceAlt : "transparent", color: filter === f ? T.teal : T.muted, border: `1px solid ${filter === f ? T.border : "transparent"}` }}>
-            {f}
-          </button>
-        ))}
-      </div>
-
-      <Card>
-        {filtered.length === 0 && <div className="p-6"><EmptyHint text="Nothing here yet. Capture your first thought above." /></div>}
-        {filtered.map((n, i) => (
-          <div key={n.id} className="flex items-start gap-3 px-4 py-3" style={{ borderTop: i === 0 ? "none" : `1px solid ${T.borderSoft}` }}>
-            <span className="mt-1.5 w-2 h-2 rounded-full flex-shrink-0" style={{ background: NOTE_TYPES[n.type] }} />
-            <div className="flex-1 min-w-0">
-              <div className="text-sm" style={{ color: T.text }}>{n.text}</div>
-              <div className="text-xs lc-mono mt-0.5 capitalize" style={{ color: T.faint }}>{n.type} · {fmtShort(n.createdAt)}</div>
-            </div>
-            <IconBtn onClick={() => removeNote(n.id)} title="Delete"><Trash2 size={14} /></IconBtn>
-          </div>
-        ))}
-      </Card>
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------------------- */
-/* Shared header                                                          */
-/* ---------------------------------------------------------------------- */
-
-function ViewHeader({ title, subtitle }) {
-  return (
-    <div>
-      <h1 className="lc-display text-2xl font-semibold" style={{ color: T.text }}>{title}</h1>
-      {subtitle && <p className="text-sm mt-1 lc-mono" style={{ color: T.faint }}>{subtitle}</p>}
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------------------- */
-/* Mount                                                                  */
-/* ---------------------------------------------------------------------- */
-
-const root = createRoot(document.getElementById("root"));
-root.render(<LifeCommandCenter />);
+render();
+})();
 </script>
 </body>
 </html>
