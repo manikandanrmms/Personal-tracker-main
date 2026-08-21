@@ -3,11 +3,12 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>MoneyFlow — Personal Budget Tracker</title><rect width="100" height="100" rx="16" fill="#1C2B3A"/><text x="50" y="66" font-size="55" text-anchor="middle" fill="#EAE3D0">₹</text></svg>">
+<title>MoneyFlow — Personal Budget Tracker</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   html, body { margin: 0; padding: 0; background: #F6F7F3; }
   * { box-sizing: border-box; }
@@ -349,6 +350,97 @@ function App() {
     a.click();
     URL.revokeObjectURL(url);
   }
+
+  function exportExcel() {
+    if (!window.XLSX || !data) {
+      alert('Excel export is not available right now. Please check your internet connection and try again.');
+      return;
+    }
+
+    const wb = XLSX.utils.book_new();
+
+    // Summary
+    const summaryRows = [
+      ['MoneyFlow Export', ''],
+      ['Export Date', todayISO()],
+      ['Current Month', currentMonthKey()],
+      ['Current Quarter', quarterKeyFromMonth(currentMonthKey())],
+      [],
+      ['Metric', 'Value'],
+      ['Income', monthStats(currentMonthKey()).income],
+      ['Expenses', monthStats(currentMonthKey()).totalExpense],
+      ['Remaining', monthStats(currentMonthKey()).remaining],
+      ['Savings', monthStats(currentMonthKey()).savingsActual],
+      ['Budget', monthStats(currentMonthKey()).totalBudget],
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryRows), 'Summary');
+
+    // Transactions
+    const txRows = (data.transactions || []).map(t => ({
+      Date: t.date,
+      Type: t.type,
+      Category: t.type === 'income' ? 'Income' : ((data.categories || []).find(c => c.id === t.categoryId)?.name || 'Other'),
+      Amount: Number(t.amount) || 0,
+      Note: t.note || ''
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(txRows.length ? txRows : [{Date:'',Type:'',Category:'',Amount:'',Note:''}]), 'Transactions');
+
+    // Categories
+    const catRows = (data.categories || []).map(c => ({
+      ID: c.id, Category: c.name, Color: c.color
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(catRows.length ? catRows : [{ID:'',Category:'',Color:''}]), 'Categories');
+
+    // Monthly Budgets
+    const budgetRows = [];
+    Object.entries(data.monthlyBudgets || {}).forEach(([month, obj]) => {
+      Object.entries(obj?.budgets || {}).forEach(([catId, amount]) => {
+        const cat = (data.categories || []).find(c => c.id === catId);
+        budgetRows.push({
+          Month: month,
+          Category: cat?.name || catId,
+          Budget: Number(amount) || 0
+        });
+      });
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
+      budgetRows.length ? budgetRows : [{Month:'',Category:'',Budget:''}]
+    ), 'Monthly Budgets');
+
+    // Goals
+    const goalRows = (data.goals || []).map(g => ({
+      Goal: g.name || '',
+      Target: Number(g.target) || 0,
+      Saved: Number(g.current) || 0,
+      Progress: g.target ? `${Math.round((Number(g.current || 0) / Number(g.target)) * 100)}%` : '0%',
+      Deadline: g.deadline || ''
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
+      goalRows.length ? goalRows : [{Goal:'',Target:'',Saved:'',Progress:'',Deadline:''}]
+    ), 'Goals');
+
+    // Reminders
+    const reminderRows = (data.reminders || []).map(r => ({
+      Reminder: r.label || '',
+      Frequency: r.frequency || '',
+      CompletedPeriods: Object.keys(r.completed || {}).filter(k => r.completed[k]).join(', ')
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
+      reminderRows.length ? reminderRows : [{Reminder:'',Frequency:'',CompletedPeriods:''}]
+    ), 'Reminders');
+
+    // Make columns readable.
+    wb.Sheets['Summary']['!cols'] = [{ wch: 24 }, { wch: 20 }];
+    wb.Sheets['Transactions']['!cols'] = [
+      { wch: 14 }, { wch: 12 }, { wch: 20 }, { wch: 14 }, { wch: 40 }
+    ];
+    wb.Sheets['Categories']['!cols'] = [{ wch: 22 }, { wch: 24 }, { wch: 14 }];
+    wb.Sheets['Monthly Budgets']['!cols'] = [{ wch: 14 }, { wch: 24 }, { wch: 14 }];
+    wb.Sheets['Goals']['!cols'] = [{ wch: 28 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 14 }];
+    wb.Sheets['Reminders']['!cols'] = [{ wch: 40 }, { wch: 14 }, { wch: 40 }];
+
+    XLSX.writeFile(wb, `moneyflow-${todayISO()}.xlsx`);
+  }
   function importData(file) {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -522,7 +614,8 @@ function App() {
           ))}
           <div className="hidden md:flex flex-col gap-1.5 px-4 py-5 mt-auto">
             <div className="eyebrow mb-1">Your data, on this device</div>
-            <button className="util-btn text-left" onClick={exportData}>\u2913 Export data</button>
+            <button className="util-btn text-left" onClick={exportData}>\u2913 Export JSON</button>
+            <button className="util-btn text-left" onClick={exportExcel}>\u2913 Export Excel</button>
             <button className="util-btn text-left" onClick={() => fileInputRef.current?.click()}>\u2911 Import data</button>
             <input ref={fileInputRef} type="file" accept="application/json" className="hidden"
               onChange={(e) => { if (e.target.files[0]) importData(e.target.files[0]); e.target.value = ''; }} />
@@ -553,7 +646,8 @@ function App() {
             <RemindersTab data={data} update={update} realMonthKey={realMonthKey} realQuarterKey={realQuarterKey} />
           )}
           <div className="md:hidden flex flex-wrap gap-2 mt-8 pt-5" style={{ borderTop: `1px dashed ${STITCH}` }}>
-            <button className="util-btn" onClick={exportData}>\u2913 Export</button>
+            <button className="util-btn" onClick={exportData}>\u2913 JSON</button>
+            <button className="util-btn" onClick={exportExcel}>\u2913 Excel</button>
             <button className="util-btn" onClick={() => fileInputRef.current?.click()}>\u2911 Import</button>
             <button className="util-btn" style={{ color: BAD }} onClick={resetData}>\u21BA Reset</button>
           </div>
