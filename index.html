@@ -324,6 +324,53 @@ input,select,button{font-family:"Inter",ui-sans-serif,system-ui,sans-serif}
     return r.value;
   }
 
+  // Convert application data into Firestore-compatible values.
+  // Finance can contain objects created by external libraries/components;
+  // Firestore rejects those custom class instances even when their contents
+  // look like ordinary JavaScript objects. This keeps the public Cloud API
+  // unchanged while normalizing nested data before every write.
+  function toFirestoreSafe(value, seen) {
+    if (value === null || value === undefined) return value === undefined ? null : null;
+
+    const type = typeof value;
+    if (type === 'string' || type === 'boolean' || type === 'number') {
+      return (type === 'number' && !Number.isFinite(value)) ? null : value;
+    }
+    if (type === 'bigint') return value.toString();
+    if (type === 'function' || type === 'symbol') return null;
+
+    if (value instanceof Date) return value;
+
+    // Protect against circular references so a bad Finance object cannot
+    // crash the save path before Firestore receives the request.
+    seen = seen || new WeakSet();
+    if (seen.has(value)) return null;
+    seen.add(value);
+
+    if (Array.isArray(value)) {
+      return value.map(v => toFirestoreSafe(v, seen));
+    }
+
+    if (value instanceof Map) {
+      const out = {};
+      value.forEach((v, k) => { out[String(k)] = toFirestoreSafe(v, seen); });
+      return out;
+    }
+
+    if (value instanceof Set) {
+      return Array.from(value, v => toFirestoreSafe(v, seen));
+    }
+
+    // Always create a new plain object. This is the important part:
+    // custom Object/class instances become normal Firestore maps.
+    const out = {};
+    Object.keys(value).forEach(k => {
+      const v = value[k];
+      if (v !== undefined) out[k] = toFirestoreSafe(v, seen);
+    });
+    return out;
+  }
+
   async function setItem(key, value, options) {
     if (!db || !currentUid) return false;
     const opts = options || {};
@@ -333,7 +380,11 @@ input,select,button{font-family:"Inter",ui-sans-serif,system-ui,sans-serif}
 
     var logId = window.DebugLog && DebugLog.start('WRITE', key);
     try {
-      await setDoc(doc(db, 'users', currentUid, 'app-data', key), { value, updatedAt: serverTimestamp() });
+      const safeValue = toFirestoreSafe(value);
+      await setDoc(
+        doc(db, 'users', currentUid, 'app-data', key),
+        { value: safeValue, updatedAt: serverTimestamp() }
+      );
       if (window.DebugLog) DebugLog.finish(logId, true, 'committed');
       setSyncSaved();
       return true;
