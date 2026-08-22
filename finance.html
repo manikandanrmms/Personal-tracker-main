@@ -1187,67 +1187,242 @@ function GoalsTab({ data, update }) {
 }
 
 /* ------------------------------- Reminders -------------------------------- */
+/* User-configurable reminder system. Native mobile delivery is exposed through
+   window.PersonalTrackerNotifications when the Android/iOS wrapper provides it. */
 
-function RemindersTab({ data, update, realMonthKey, realQuarterKey }) {
-  const [form, setForm] = useState({ label: '', frequency: 'monthly' });
+const REMINDER_RECURRENCES = [
+  ['none','One time'],['daily','Daily'],['weekly','Weekly'],
+  ['monthly','Monthly'],['yearly','Yearly'],['custom','Custom interval']
+];
+const REMINDER_TRIGGERS = [
+  ['time','Time-based'],['event','Event-based'],
+  ['location','Location-based'],['custom','Custom condition']
+];
 
-  function addReminder() {
-    if (!form.label.trim()) return;
-    update((d) => { d.reminders.push({ id: 'rem-' + Date.now(), label: form.label.trim(), frequency: form.frequency, completed: {} }); });
-    setForm({ label: '', frequency: 'monthly' });
+function reminderDefaultForm() {
+  const now = new Date();
+  return {
+    id:null,title:'',description:'',date:todayISO(),
+    time:`${pad2(now.getHours())}:${pad2(now.getMinutes())}`,
+    recurrence:'none',interval:1,intervalUnit:'days',
+    triggerType:'time',triggerValue:'',
+    timezone:Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+    enabled:true,snoozeMinutes:60,lastTriggeredAt:null,notificationId:null
+  };
+}
+function normalizeReminder(r) {
+  const base=reminderDefaultForm();
+  return {...base,...r,
+    id:r?.id || `rem-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+    interval:Math.max(1,Number(r?.interval||1)),
+    enabled:r?.enabled!==false,timezone:r?.timezone||base.timezone
+  };
+}
+function nextReminderOccurrence(reminder,from=new Date()) {
+  const r=normalizeReminder(reminder);
+  const d0=new Date(`${r.date}T${r.time||'09:00'}:00`);
+  if(Number.isNaN(d0.getTime())) return null;
+  if(r.recurrence==='none') return d0>from?d0:null;
+  let d=new Date(d0);
+  for(let i=0;i<2000 && d<=from;i++){
+    if(r.recurrence==='daily') d.setDate(d.getDate()+1);
+    else if(r.recurrence==='weekly') d.setDate(d.getDate()+7);
+    else if(r.recurrence==='monthly') d.setMonth(d.getMonth()+1);
+    else if(r.recurrence==='yearly') d.setFullYear(d.getFullYear()+1);
+    else if(r.recurrence==='custom'){
+      if(r.intervalUnit==='weeks') d.setDate(d.getDate()+7*r.interval);
+      else if(r.intervalUnit==='months') d.setMonth(d.getMonth()+r.interval);
+      else if(r.intervalUnit==='years') d.setFullYear(d.getFullYear()+r.interval);
+      else d.setDate(d.getDate()+r.interval);
+    } else return null;
   }
-  function removeReminder(id) { update((d) => { d.reminders = d.reminders.filter((r) => r.id !== id); }); }
-  function toggle(id) {
-    update((d) => {
-      const r = d.reminders.find((x) => x.id === id);
-      if (!r) return;
-      const period = r.frequency === 'monthly' ? realMonthKey : realQuarterKey;
-      if (!r.completed) r.completed = {};
-      r.completed[period] = !r.completed[period];
+  return d>from?d:null;
+}
+function formatReminderDateTime(r) {
+  const d=nextReminderOccurrence(r,new Date(Date.now()-1000));
+  return d?d.toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'}):'No future occurrence';
+}
+function notificationBridge(){return window.PersonalTrackerNotifications||null;}
+
+async function requestReminderNotificationPermission(){
+  try{
+    const b=notificationBridge();
+    if(b?.requestPermission) return await b.requestPermission();
+    if('Notification' in window) return (await Notification.requestPermission())==='granted';
+  }catch(e){console.warn('Notification permission request failed:',e);}
+  return false;
+}
+async function scheduleReminderNotification(reminder){
+  const r=normalizeReminder(reminder);
+  const next=nextReminderOccurrence(r);
+  if(!r.enabled||!next) return {ok:false,reason:'no-future-occurrence'};
+  try{
+    const b=notificationBridge();
+    if(b?.scheduleReminder){
+      const result=await b.scheduleReminder({
+        id:r.id,title:r.title,
+        body:r.description||`${r.title} is due.`,
+        dueAt:next.toISOString(),recurrence:r.recurrence,
+        interval:r.interval,intervalUnit:r.intervalUnit,
+        triggerType:r.triggerType,triggerValue:r.triggerValue,
+        timezone:r.timezone,snoozeMinutes:r.snoozeMinutes,
+        deepLink:`personaltracker://finance/reminders/${encodeURIComponent(r.id)}`
+      });
+      return {ok:true,native:true,result,next};
+    }
+    const granted=await requestReminderNotificationPermission();
+    if(!granted) return {ok:false,reason:'permission-denied'};
+    const delay=next.getTime()-Date.now();
+    if(delay>0 && delay<=2147483647 && 'Notification' in window){
+      const timer=setTimeout(()=>{try{
+        new Notification(r.title||'Reminder',{body:r.description||`${r.title} is due.`,tag:r.id});
+      }catch(_){}},delay);
+      window.__reminderTimers=window.__reminderTimers||{};
+      window.__reminderTimers[r.id]=timer;
+      return {ok:true,native:false,next};
+    }
+    return {ok:false,reason:'native-mobile-scheduler-required'};
+  }catch(e){console.warn('Reminder scheduling failed:',e);return {ok:false,reason:e?.message||'schedule-failed'};}
+}
+async function cancelReminderNotification(id){
+  try{
+    const b=notificationBridge();
+    if(b?.cancelReminder) await b.cancelReminder({id});
+    if(window.__reminderTimers?.[id]){clearTimeout(window.__reminderTimers[id]);delete window.__reminderTimers[id];}
+    return true;
+  }catch(e){console.warn('Reminder cancellation failed:',e);return false;}
+}
+
+function RemindersTab({data,update,realMonthKey,realQuarterKey}){
+  const [form,setForm]=useState(reminderDefaultForm());
+  const [editing,setEditing]=useState(false);
+  const [notice,setNotice]=useState('');
+  const reminders=(data.reminders||[]).map(normalizeReminder);
+  const active=reminders.filter(r=>r.enabled);
+  const paused=reminders.filter(r=>!r.enabled);
+
+  async function saveReminder(){
+    if(!form.title.trim()){setNotice('Please enter a reminder title.');return;}
+    if(!form.date||!form.time){setNotice('Please select a date and time.');return;}
+    const item=normalizeReminder({...form,title:form.title.trim(),description:form.description.trim()});
+    const permission=await requestReminderNotificationPermission();
+    update(d=>{
+      if(!Array.isArray(d.reminders)) d.reminders=[];
+      const i=d.reminders.findIndex(x=>x.id===item.id);
+      if(i>=0)d.reminders[i]=item;else d.reminders.push(item);
     });
+    const scheduled=await scheduleReminderNotification(item);
+    setNotice(scheduled.ok
+      ? `Saved. Next reminder: ${formatReminderDateTime(item)}`
+      : permission
+        ? `Saved. Mobile scheduling is pending native notification support (${scheduled.reason}).`
+        : 'Saved. Notification permission is currently disabled.');
+    setForm(reminderDefaultForm());setEditing(false);
   }
+  function editReminder(r){setForm(normalizeReminder(r));setEditing(true);setNotice('');}
+  async function removeReminder(id){
+    await cancelReminderNotification(id);
+    update(d=>{d.reminders=(d.reminders||[]).filter(r=>r.id!==id);});
+    if(form.id===id){setForm(reminderDefaultForm());setEditing(false);}
+    setNotice('Reminder deleted.');
+  }
+  async function toggleReminder(r){
+    const next=normalizeReminder({...r,enabled:!r.enabled});
+    if(next.enabled)await scheduleReminderNotification(next);else await cancelReminderNotification(next.id);
+    update(d=>{const t=d.reminders.find(x=>x.id===next.id);if(t)t.enabled=next.enabled;});
+    setNotice(next.enabled?'Reminder resumed.':'Reminder paused.');
+  }
+  async function snoozeReminder(r){
+    const minutes=Math.max(5,Number(r.snoozeMinutes||60));
+    try{
+      if(notificationBridge()?.snoozeReminder){
+        await notificationBridge().snoozeReminder({id:r.id,minutes});
+        setNotice(`Snoozed for ${minutes} minutes.`);return;
+      }
+    }catch(e){console.warn('Snooze failed:',e);}
+    setNotice('Snooze will be available through the mobile notification bridge.');
+  }
+  function cancelForm(){setForm(reminderDefaultForm());setEditing(false);setNotice('');}
 
-  const monthly = data.reminders.filter((r) => r.frequency === 'monthly');
-  const quarterly = data.reminders.filter((r) => r.frequency === 'quarterly');
+  return <div>
+    <SectionTitle eyebrow="Personal notifications" title="Reminders"
+      right={<button className="util-btn" onClick={requestReminderNotificationPermission}>Enable notifications</button>}/>
 
-  const List = ({ items, period }) => (
-    <ul>
-      {items.map((r) => {
-        const done = !!(r.completed || {})[period];
-        return (
-          <li key={r.id} className="row-line py-2.5 flex items-center justify-between">
-            <label className="flex items-center gap-2.5 cursor-pointer text-sm">
-              <input type="checkbox" checked={done} onChange={() => toggle(r.id)} className="w-4 h-4" />
-              <span style={{ textDecoration: done ? 'line-through' : 'none', color: done ? INK_SOFT : INK }}>{r.label}</span>
-            </label>
-            <button onClick={() => removeReminder(r.id)} className="text-xs" style={{ color: BAD }}>Remove</button>
-          </li>
-        );
-      })}
-    </ul>
-  );
-
-  return (
-    <div>
-      <SectionTitle eyebrow="Never miss a review" title="Reminders" />
-      <LedgerCard className="mb-5">
-        <div className="flex flex-wrap items-end gap-2.5">
-          <div className="flex-1 min-w-[180px]"><div className="eyebrow">Reminder</div><input className="ledger-input w-full" value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} placeholder="e.g. Pay rent" /></div>
-          <div>
-            <div className="eyebrow">Frequency</div>
-            <select className="ledger-select" value={form.frequency} onChange={(e) => setForm({ ...form, frequency: e.target.value })}>
-              <option value="monthly">Monthly</option><option value="quarterly">Quarterly</option>
-            </select>
-          </div>
-          <button onClick={addReminder} className="ledger-input font-mono text-sm" style={{ background: INK, color: CARD, borderColor: INK, fontWeight: 600 }}>+ Add reminder</button>
-        </div>
-      </LedgerCard>
-      <div className="grid md:grid-cols-2 gap-4">
-        <LedgerCard><SectionTitle eyebrow={monthLabel(realMonthKey)} title="Monthly" /><List items={monthly} period={realMonthKey} /></LedgerCard>
-        <LedgerCard><SectionTitle eyebrow={quarterLabel(realQuarterKey)} title="Quarterly" /><List items={quarterly} period={realQuarterKey} /></LedgerCard>
+    <LedgerCard className="mb-5">
+      <div className="eyebrow">{editing?'Edit reminder':'Create your own reminder'}</div>
+      <div className="grid md:grid-cols-2 gap-3 mt-2">
+        <div><div className="eyebrow">Title</div>
+          <input className="ledger-input w-full" value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="e.g. Pay electricity bill"/></div>
+        <div><div className="eyebrow">Description</div>
+          <input className="ledger-input w-full" value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Optional details"/></div>
+        <div><div className="eyebrow">Date</div>
+          <input type="date" className="ledger-input w-full" value={form.date} onChange={e=>setForm({...form,date:e.target.value})}/></div>
+        <div><div className="eyebrow">Time</div>
+          <input type="time" className="ledger-input w-full" value={form.time} onChange={e=>setForm({...form,time:e.target.value})}/></div>
+        <div><div className="eyebrow">Recurrence</div>
+          <select className="ledger-select w-full" value={form.recurrence} onChange={e=>setForm({...form,recurrence:e.target.value})}>
+            {REMINDER_RECURRENCES.map(([v,l])=><option key={v} value={v}>{l}</option>)}
+          </select></div>
+        {form.recurrence==='custom'&&<div className="grid grid-cols-2 gap-2">
+          <div><div className="eyebrow">Every</div><input type="number" min="1" className="ledger-input w-full" value={form.interval} onChange={e=>setForm({...form,interval:Math.max(1,Number(e.target.value)||1)})}/></div>
+          <div><div className="eyebrow">Unit</div><select className="ledger-select w-full" value={form.intervalUnit} onChange={e=>setForm({...form,intervalUnit:e.target.value})}>
+            <option value="days">Days</option><option value="weeks">Weeks</option><option value="months">Months</option><option value="years">Years</option>
+          </select></div>
+        </div>}
+        <div><div className="eyebrow">Trigger</div>
+          <select className="ledger-select w-full" value={form.triggerType} onChange={e=>setForm({...form,triggerType:e.target.value})}>
+            {REMINDER_TRIGGERS.map(([v,l])=><option key={v} value={v}>{l}</option>)}
+          </select></div>
+        {form.triggerType!=='time'&&<div><div className="eyebrow">
+          {form.triggerType==='event'?'Event name':form.triggerType==='location'?'Location / place':'Custom condition'}</div>
+          <input className="ledger-input w-full" value={form.triggerValue} onChange={e=>setForm({...form,triggerValue:e.target.value})}
+            placeholder={form.triggerType==='event'?'e.g. salary received':form.triggerType==='location'?'e.g. home or office':'e.g. balance below ₹10,000'}/></div>}
+        <div><div className="eyebrow">Snooze</div>
+          <select className="ledger-select w-full" value={form.snoozeMinutes} onChange={e=>setForm({...form,snoozeMinutes:Number(e.target.value)})}>
+            <option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="180">3 hours</option><option value="1440">Tomorrow</option>
+          </select></div>
+        <div><div className="eyebrow">Timezone</div><input className="ledger-input w-full" value={form.timezone} readOnly/></div>
       </div>
-    </div>
-  );
+      <div className="flex flex-wrap gap-2 mt-4">
+        <button onClick={saveReminder} className="ledger-input font-mono text-sm" style={{background:INK,color:CARD,borderColor:INK,fontWeight:600}}>
+          {editing?'Save changes':'+ Create reminder'}
+        </button>
+        {editing&&<button onClick={cancelForm} className="util-btn">Cancel</button>}
+      </div>
+      {notice&&<div className="mt-3 text-xs rounded-lg p-3" style={{background:'#F4F7FF',color:INK_SOFT}}>{notice}</div>}
+    </LedgerCard>
+
+    <LedgerCard className="mb-5">
+      <SectionTitle eyebrow="Schedule preview" title="Upcoming reminders"/>
+      <div className="space-y-2">
+        {active.length===0&&<div className="text-sm" style={{color:INK_SOFT}}>No active reminders. Create one above.</div>}
+        {active.slice().sort((a,b)=>(nextReminderOccurrence(a)?.getTime()||Infinity)-(nextReminderOccurrence(b)?.getTime()||Infinity)).map(r=>
+          <div key={r.id} className="row-line py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+            <div><div className="font-semibold text-sm">{r.title}</div>
+              <div className="text-xs mt-1" style={{color:INK_SOFT}}>{r.description||'No description'} · {r.triggerType} · {r.recurrence}</div>
+              <div className="text-xs mt-1 font-mono" style={{color:BRASS}}>Next: {formatReminderDateTime(r)} · {r.timezone}</div>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <button className="util-btn" onClick={()=>snoozeReminder(r)}>Snooze</button>
+              <button className="util-btn" onClick={()=>toggleReminder(r)}>Pause</button>
+              <button className="util-btn" onClick={()=>editReminder(r)}>Edit</button>
+              <button className="util-btn" style={{color:BAD}} onClick={()=>removeReminder(r.id)}>Delete</button>
+            </div>
+          </div>)}
+      </div>
+    </LedgerCard>
+
+    {paused.length>0&&<LedgerCard>
+      <SectionTitle eyebrow="Paused" title="Paused reminders"/>
+      <div className="space-y-2">{paused.map(r=>
+        <div key={r.id} className="row-line py-3 flex items-center justify-between gap-2">
+          <div><div className="font-semibold text-sm">{r.title}</div><div className="text-xs" style={{color:INK_SOFT}}>Paused · {r.recurrence} · {r.timezone}</div></div>
+          <div className="flex gap-2"><button className="util-btn" onClick={()=>toggleReminder(r)}>Resume</button>
+            <button className="util-btn" onClick={()=>editReminder(r)}>Edit</button>
+            <button className="util-btn" style={{color:BAD}} onClick={()=>removeReminder(r.id)}>Delete</button></div>
+        </div>)}</div>
+    </LedgerCard>}
+  </div>;
 }
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
