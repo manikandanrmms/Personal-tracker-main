@@ -348,7 +348,7 @@ input,select,button{font-family:"Inter",ui-sans-serif,system-ui,sans-serif}
     seen.add(value);
 
     if (Array.isArray(value)) {
-      return value.map(v => toFirestoreSafe(v, seen));
+      return Array.from(value, v => toFirestoreSafe(v, seen));
     }
 
     if (value instanceof Map) {
