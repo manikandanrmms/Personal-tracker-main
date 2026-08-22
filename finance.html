@@ -57,6 +57,38 @@ const DEFAULT_REMINDERS = [
   { id: 'r-qadjust', label: 'Adjust next-quarter budget', frequency: 'quarterly', completed: {} },
 ];
 
+/* ---------------------- default / normalized data ---------------------- */
+/*
+ * The Finance app previously called defaultData() but never defined it.
+ * That caused the runtime error:
+ *   ReferenceError: defaultData is not defined
+ *
+ * Keep this as a function (rather than a shared mutable object) so every
+ * new session receives fresh arrays/objects.
+ */
+function defaultData() {
+  return {
+    categories: DEFAULT_CATEGORIES.map((c) => ({ ...c })),
+    transactions: [],
+    monthlyBudgets: {},
+    goals: [],
+    reminders: DEFAULT_REMINDERS.map((r) => ({ ...r, completed: { ...(r.completed || {}) } })),
+  };
+}
+
+function normalizeFinanceData(raw) {
+  const base = defaultData();
+  if (!raw || typeof raw !== 'object') return base;
+
+  return {
+    categories: Array.isArray(raw.categories) ? raw.categories : base.categories,
+    transactions: Array.isArray(raw.transactions) ? raw.transactions : base.transactions,
+    monthlyBudgets: raw.monthlyBudgets && typeof raw.monthlyBudgets === 'object' ? raw.monthlyBudgets : {},
+    goals: Array.isArray(raw.goals) ? raw.goals : [],
+    reminders: Array.isArray(raw.reminders) ? raw.reminders : base.reminders,
+  };
+}
+
 const TABS = ['Dashboard', 'Transactions', 'Monthly Budget', 'Quarterly Review', 'Categories', 'Goals', 'Reminders'];
 
 /* ---------------------------- helpers ------------------------------ */
@@ -136,39 +168,86 @@ async function loadFromStorage() {
   try {
     const parent = window.parent;
     const C = parent && parent.Cloud;
-    if (!C) return null;
+
+    // No Cloud bridge: use legacy local data, but do not pretend that it is
+    // synchronized with another device.
+    if (!C) {
+      return { data: normalizeFinanceData(legacyLoadFromStorage()), canWriteCloud: false, source: 'local' };
+    }
 
     // Wait for the parent application to finish restoring Firebase Auth.
     if (C.ready && typeof C.ready.then === 'function') {
-      try { await Promise.race([C.ready, new Promise(r => setTimeout(r, 8000))]); } catch (_) {}
+      try {
+        await Promise.race([
+          C.ready,
+          new Promise(r => setTimeout(r, 8000))
+        ]);
+      } catch (_) {}
     }
 
     const uid = typeof C.getCurrentUid === 'function' ? C.getCurrentUid() : null;
-    if (!uid || typeof C.getItemSafe !== 'function') return null;
+    if (!uid || typeof C.getItemSafe !== 'function') {
+      return { data: normalizeFinanceData(legacyLoadFromStorage()), canWriteCloud: false, source: 'local' };
+    }
 
     // Never leave the Finance tab on the loading screen indefinitely.
     const readPromise = C.getItemSafe('finance');
     const result = await Promise.race([
       readPromise,
-      new Promise(resolve => setTimeout(() => resolve({ ok: false, exists: false, value: null, timeout: true }), 8000))
+      new Promise(resolve => setTimeout(
+        () => resolve({ ok: false, exists: false, value: null, timeout: true }),
+        8000
+      ))
     ]);
 
+    // IMPORTANT: a failed/timeout read must NOT be treated as "no data".
+    // Otherwise a second device could overwrite real cloud data with defaults.
     if (!result || !result.ok) {
-      console.warn('Finance Firebase read unavailable; keeping local/default data.');
-      return legacyLoadFromStorage();
+      console.warn('Finance Firebase read unavailable; using local/default data without cloud overwrite.');
+      return {
+        data: normalizeFinanceData(legacyLoadFromStorage()),
+        canWriteCloud: false,
+        source: 'unavailable'
+      };
     }
-    if (result.exists && result.value) return result.value;
+
+    if (result.exists && result.value) {
+      return {
+        data: normalizeFinanceData(result.value),
+        canWriteCloud: true,
+        source: 'cloud'
+      };
+    }
 
     // One-time migration from previous browser-local Finance data.
     const legacy = legacyLoadFromStorage();
     if (legacy) {
-      try { await C.setItem('finance', legacy, { uid }); } catch (_) {}
-      return legacy;
+      try {
+        await C.setItem('finance', normalizeFinanceData(legacy), { uid });
+        return {
+          data: normalizeFinanceData(legacy),
+          canWriteCloud: true,
+          source: 'migrated'
+        };
+      } catch (e) {
+        console.warn('Finance legacy migration failed:', e);
+        return {
+          data: normalizeFinanceData(legacy),
+          canWriteCloud: false,
+          source: 'local'
+        };
+      }
     }
-    return null;
+
+    // Authenticated user with no Finance document yet. It is safe to create it.
+    return { data: defaultData(), canWriteCloud: true, source: 'new-cloud' };
   } catch (e) {
     console.warn('Finance Firebase load failed:', e);
-    return legacyLoadFromStorage();
+    return {
+      data: normalizeFinanceData(legacyLoadFromStorage()),
+      canWriteCloud: false,
+      source: 'error'
+    };
   }
 }
 
@@ -284,6 +363,7 @@ function App() {
   const [selectedMonth, setSelectedMonth] = useState(currentMonthKey());
   const [selectedQuarter, setSelectedQuarter] = useState(quarterKeyFromMonth(currentMonthKey()));
   const loadedRef = useRef(false);
+  const [cloudWriteEnabled, setCloudWriteEnabled] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -292,9 +372,10 @@ function App() {
     async function hydrate() {
       loadedRef.current = false;
       setLoading(true);
-      const existing = await loadFromStorage();
+      const result = await loadFromStorage();
       if (!active) return;
-      setData(existing || defaultData());
+      setData(normalizeFinanceData(result?.data));
+      setCloudWriteEnabled(!!result?.canWriteCloud);
       setLoading(false);
       loadedRef.current = true;
     }
@@ -305,6 +386,7 @@ function App() {
       if (!event.data || event.data.type !== 'firebase-auth-changed') return;
       if (!event.data.uid) {
         loadedRef.current = false;
+        setCloudWriteEnabled(false);
         setData(defaultData());
         setLoading(false);
         return;
@@ -331,9 +413,9 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!loadedRef.current || !data) return;
+    if (!loadedRef.current || !data || !cloudWriteEnabled) return;
     saveToStorage(data);
-  }, [data]);
+  }, [data, cloudWriteEnabled]);
 
   const update = (fn) => setData((prev) => {
     const next = JSON.parse(JSON.stringify(prev));
