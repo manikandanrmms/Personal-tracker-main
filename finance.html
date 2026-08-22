@@ -164,6 +164,24 @@ function legacyLoadFromStorage() {
   } catch (e) { return null; }
 }
 
+/*
+ * IMPORTANT: Finance runs inside an iframe while the Firebase Cloud bridge
+ * lives in the parent window. Firestore's web SDK can reject objects created
+ * in another JavaScript realm as a "custom Object". Build the final payload
+ * in the parent realm before handing it to the Cloud bridge.
+ */
+function toParentRealmData(value) {
+  try {
+    const parentJSON = window.parent && window.parent.JSON;
+    if (parentJSON && typeof parentJSON.parse === 'function') {
+      return parentJSON.parse(JSON.stringify(value));
+    }
+  } catch (e) {
+    console.warn('Finance cloud payload normalization failed:', e);
+  }
+  return JSON.parse(JSON.stringify(value));
+}
+
 async function loadFromStorage() {
   try {
     const parent = window.parent;
@@ -223,7 +241,7 @@ async function loadFromStorage() {
     const legacy = legacyLoadFromStorage();
     if (legacy) {
       try {
-        await C.setItem('finance', normalizeFinanceData(legacy), { uid });
+        await C.setItem('finance', toParentRealmData(normalizeFinanceData(legacy)), { uid });
         return {
           data: normalizeFinanceData(legacy),
           canWriteCloud: true,
@@ -254,8 +272,18 @@ async function loadFromStorage() {
 function saveToStorage(data) {
   try {
     const C = window.parent && window.parent.Cloud;
-    if (!C || typeof C.getCurrentUid !== 'function' || !C.getCurrentUid()) return;
-    C.scheduleSave('finance', () => data, 500);
+    const uid = C && typeof C.getCurrentUid === 'function' ? C.getCurrentUid() : null;
+    if (!C || !uid) return;
+
+    // Keep a device-local copy as a safety net.
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (_) {}
+
+    // The parent window owns the Firebase SDK. Return an object created in
+    // the parent JavaScript realm so Firestore accepts it as a plain object.
+    const cloudData = toParentRealmData(data);
+    C.scheduleSave('finance', () => cloudData, 500);
   } catch (e) {
     console.warn('Finance Firebase save failed:', e);
   }
@@ -374,7 +402,11 @@ function App() {
       setLoading(true);
       const result = await loadFromStorage();
       if (!active) return;
-      setData(normalizeFinanceData(result?.data));
+      const hydratedData = normalizeFinanceData(result?.data);
+      setData(hydratedData);
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(hydratedData));
+      } catch (_) {}
       setCloudWriteEnabled(!!result?.canWriteCloud);
       setLoading(false);
       loadedRef.current = true;
