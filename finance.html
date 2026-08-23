@@ -1244,14 +1244,58 @@ function formatReminderDateTime(r) {
 }
 function notificationBridge(){return window.PersonalTrackerNotifications||null;}
 
+function notificationPermissionState(){
+  try{
+    const b=notificationBridge();
+    if(b?.permissionState) return b.permissionState();
+    if('Notification' in window) return Notification.permission;
+  }catch(_){}
+  return 'unsupported';
+}
+
 async function requestReminderNotificationPermission(){
   try{
     const b=notificationBridge();
-    if(b?.requestPermission) return await b.requestPermission();
-    if('Notification' in window) return (await Notification.requestPermission())==='granted';
+    if(b?.requestPermission){
+      const result=await b.requestPermission();
+      return result===true || result==='granted' || result?.granted===true;
+    }
+    if('Notification' in window){
+      return (await Notification.requestPermission())==='granted';
+    }
   }catch(e){console.warn('Notification permission request failed:',e);}
   return false;
 }
+
+function clearWebReminderTimer(id){
+  if(window.__reminderTimers?.[id]){clearTimeout(window.__reminderTimers[id]);delete window.__reminderTimers[id];}
+}
+
+function armWebReminderTimer(reminder){
+  const r=normalizeReminder(reminder);
+  clearWebReminderTimer(r.id);
+  const next=nextReminderOccurrence(r);
+  if(!r.enabled||!next||typeof Notification==='undefined'||Notification.permission!=='granted') return false;
+
+  // setTimeout is limited to ~24.8 days. Re-arm in chunks so long-term
+  // reminders still work while the web app remains open.
+  const MAX=2147483647;
+  const delay=Math.max(1000,next.getTime()-Date.now());
+  const wait=Math.min(delay,MAX);
+  window.__reminderTimers=window.__reminderTimers||{};
+  window.__reminderTimers[r.id]=setTimeout(()=>{
+    try{
+      const due=nextReminderOccurrence(r,new Date(Date.now()-1000));
+      if(due && due.getTime()<=Date.now()+1500){
+        new Notification(r.title||'Reminder',{body:r.description||`${r.title} is due.`,tag:r.id});
+      }
+    }catch(e){console.warn('Web reminder notification failed:',e);}
+    if(r.recurrence!=='none') armWebReminderTimer(r);
+    else clearWebReminderTimer(r.id);
+  },wait);
+  return true;
+}
+
 async function scheduleReminderNotification(reminder){
   const r=normalizeReminder(reminder);
   const next=nextReminderOccurrence(r);
@@ -1268,27 +1312,33 @@ async function scheduleReminderNotification(reminder){
         timezone:r.timezone,snoozeMinutes:r.snoozeMinutes,
         deepLink:`personaltracker://finance/reminders/${encodeURIComponent(r.id)}`
       });
+      // Do not report success unless the native bridge explicitly confirms it.
+      if(result===false || result?.ok===false || result?.success===false){
+        return {ok:false,reason:result?.reason||'native-schedule-rejected',native:true,result,next};
+      }
       return {ok:true,native:true,result,next};
     }
+
     const granted=await requestReminderNotificationPermission();
     if(!granted) return {ok:false,reason:'permission-denied'};
-    const delay=next.getTime()-Date.now();
-    if(delay>0 && delay<=2147483647 && 'Notification' in window){
-      const timer=setTimeout(()=>{try{
-        new Notification(r.title||'Reminder',{body:r.description||`${r.title} is due.`,tag:r.id});
-      }catch(_){}},delay);
-      window.__reminderTimers=window.__reminderTimers||{};
-      window.__reminderTimers[r.id]=timer;
-      return {ok:true,native:false,next};
-    }
-    return {ok:false,reason:'native-mobile-scheduler-required'};
-  }catch(e){console.warn('Reminder scheduling failed:',e);return {ok:false,reason:e?.message||'schedule-failed'};}
+    if(typeof Notification==='undefined') return {ok:false,reason:'notifications-unsupported'};
+    if(Notification.permission!=='granted') return {ok:false,reason:'permission-denied'};
+    if(!armWebReminderTimer(r)) return {ok:false,reason:'web-scheduler-unavailable'};
+    return {ok:true,native:false,next};
+  }catch(e){
+    console.warn('Reminder scheduling failed:',e);
+    return {ok:false,reason:e?.message||'schedule-failed'};
+  }
 }
+
 async function cancelReminderNotification(id){
   try{
     const b=notificationBridge();
-    if(b?.cancelReminder) await b.cancelReminder({id});
-    if(window.__reminderTimers?.[id]){clearTimeout(window.__reminderTimers[id]);delete window.__reminderTimers[id];}
+    if(b?.cancelReminder){
+      const result=await b.cancelReminder({id});
+      if(result===false || result?.ok===false) return false;
+    }
+    clearWebReminderTimer(id);
     return true;
   }catch(e){console.warn('Reminder cancellation failed:',e);return false;}
 }
@@ -1297,15 +1347,48 @@ function RemindersTab({data,update,realMonthKey,realQuarterKey}){
   const [form,setForm]=useState(reminderDefaultForm());
   const [editing,setEditing]=useState(false);
   const [notice,setNotice]=useState('');
+  const [permissionState,setPermissionState]=useState(notificationPermissionState());
   const reminders=(data.reminders||[]).map(normalizeReminder);
   const active=reminders.filter(r=>r.enabled);
   const paused=reminders.filter(r=>!r.enabled);
+
+  // Re-arm already-granted web reminders whenever the Reminders screen opens.
+  useEffect(()=>{
+    let cancelled=false;
+    (async()=>{
+      const state=notificationPermissionState();
+      if(!cancelled)setPermissionState(state);
+      if(state==='granted' && !notificationBridge()){
+        active.forEach(r=>armWebReminderTimer(r));
+      }
+    })();
+    return ()=>{cancelled=true;};
+  },[data.reminders?.length]);
+
+  async function enableNotifications(){
+    const granted=await requestReminderNotificationPermission();
+    const state=notificationPermissionState();
+    setPermissionState(state);
+    if(!granted){
+      setNotice(state==='denied'
+        ? 'Notifications are blocked. Please allow notifications for this site/app in your device/browser settings.'
+        : 'Notifications are not available in this environment.');
+      return;
+    }
+    let ok=0,failed=0;
+    for(const r of active){
+      const result=await scheduleReminderNotification(r);
+      if(result.ok)ok++;else failed++;
+    }
+    setNotice(failed
+      ? `Notifications enabled. ${ok} reminder(s) scheduled; ${failed} could not be scheduled. ${notificationBridge()?'Check the APK notification bridge.':'Keep this web page open for web reminders.'}`
+      : `Notifications enabled. ${ok} active reminder(s) scheduled.`);
+  }
 
   async function saveReminder(){
     if(!form.title.trim()){setNotice('Please enter a reminder title.');return;}
     if(!form.date||!form.time){setNotice('Please select a date and time.');return;}
     const item=normalizeReminder({...form,title:form.title.trim(),description:form.description.trim()});
-    const permission=await requestReminderNotificationPermission();
     update(d=>{
       if(!Array.isArray(d.reminders)) d.reminders=[];
       const i=d.reminders.findIndex(x=>x.id===item.id);
@@ -1314,9 +1397,11 @@ function RemindersTab({data,update,realMonthKey,realQuarterKey}){
     const scheduled=await scheduleReminderNotification(item);
     setNotice(scheduled.ok
       ? `Saved. Next reminder: ${formatReminderDateTime(item)}`
-      : permission
-        ? `Saved. Mobile scheduling is pending native notification support (${scheduled.reason}).`
-        : 'Saved. Notification permission is currently disabled.');
+      : scheduled.reason==='permission-denied'
+        ? 'Saved, but notifications are blocked. Click Enable notifications and allow permission.'
+        : scheduled.reason==='native-schedule-rejected'
+          ? 'Saved, but the APK notification scheduler rejected the reminder. The APK notification bridge must be enabled.'
+          : `Saved, but the reminder could not be scheduled (${scheduled.reason}).`);
     setForm(reminderDefaultForm());setEditing(false);
   }
   function editReminder(r){setForm(normalizeReminder(r));setEditing(true);setNotice('');}
@@ -1346,7 +1431,16 @@ function RemindersTab({data,update,realMonthKey,realQuarterKey}){
 
   return <div>
     <SectionTitle eyebrow="Personal notifications" title="Reminders"
-      right={<button className="util-btn" onClick={requestReminderNotificationPermission}>Enable notifications</button>}/>
+      right={<button className="util-btn" onClick={enableNotifications}>
+        {permissionState==='granted'?'Notifications enabled':'Enable notifications'}
+      </button>}/>
+    <div className="mb-4 text-xs rounded-lg p-3" style={{background:permissionState==='granted'?'#EEF8F3':'#FFF8EC',color:INK_SOFT}}>
+      {notificationBridge()
+        ? 'Mobile notification bridge detected.'
+        : permissionState==='granted'
+          ? 'Web notifications are enabled. Keep this page open for scheduled reminders.'
+          : 'Notifications are not enabled yet.'}
+    </div>
 
     <LedgerCard className="mb-5">
       <div className="eyebrow">{editing?'Edit reminder':'Create your own reminder'}</div>
